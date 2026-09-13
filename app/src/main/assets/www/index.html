@@ -87,6 +87,7 @@
   .msg.assistant{display:flex;gap:8px;align-items:flex-start;background:none;border:none;padding:0;max-width:88%}
   .msg.assistant .avatar{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;margin-top:2px}
   .msg.assistant .bubble{background:#fff;border:1px solid var(--line);border-radius:18px 18px 18px 4px;padding:10px 12px}
+  .msg.assistant .chat-action{margin-top:8px;width:100%;background:var(--brand);color:#fff;border-radius:12px;padding:10px;font-size:14px}
   .msg img{max-width:100%;border-radius:10px;margin-top:6px;display:block}
   .msg .mtime{font-size:10px;opacity:.6;margin-top:4px}
   .typing{color:var(--muted);font-size:13px;padding:6px 4px}
@@ -171,7 +172,7 @@
 
 /* ============ 常量与状态 ============ */
 const DB_NAME = "light-weight-tracker";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORES = ["profile","checkins","foods","recipes","chat","settings","health"];
 const DEFAULT_PROVIDER = "openai";
 const DEFAULT_MODEL = "gpt-5-mini";
@@ -553,7 +554,8 @@ function welcomeHTML(){
 function msgHTML(m){
   const img=m.image?`<img src="${m.image}" onclick="showLightbox(this.src)">`:"";
   if(m.role==="assistant"){
-    return `<div class="msg assistant" data-msg-id="${m.id||""}"><img class="avatar" src="pig-avatar.png" alt=""><span class="bubble">${esc(m.text||"")}${img}</span></div>`;
+    const action=m.action==="saveRecipe"?`<button class="chat-action" onclick="saveGeneratedRecipe()">💾 保存到食谱</button>`:"";
+    return `<div class="msg assistant" data-msg-id="${m.id||""}"><img class="avatar" src="pig-avatar.png" alt=""><span class="bubble">${esc(m.text||"")}${action}${img}</span></div>`;
   }
   return `<div class="msg user" data-msg-id="${m.id||""}">${esc(m.text||"")}${img}</div>`;
 }
@@ -638,7 +640,7 @@ async function aiGenerateRecipe(){
     if(recipe && recipe.name){
       const obj=normalizeRecipe(recipe);
       chat.push({role:"assistant",text:"✅ 已生成食谱「"+obj.name+"」。点击下方可保存到「食谱」页。\n\n"+recipeSummaryText(obj),ts:Date.now()});
-      chat.push({role:"assistant",text:"<button onclick='saveGeneratedRecipe()'>💾 保存这份食谱</button>",ts:Date.now(),__html:true});
+      chat.push({role:"assistant",text:"",ts:Date.now(),action:"saveRecipe"});
       window._pendingRecipe=obj;
     }else{
       chat.push({role:"assistant",text:reply,ts:Date.now()});
@@ -1047,8 +1049,12 @@ async function renderTrends(){
 function setPeriod(p){ period=p; renderTrends(); }
 
 async function getHealthRecords(){
-  const arr=await idbGetAll("health");
-  return arr.sort((a,b)=>a.date.localeCompare(b.date));
+  try{
+    const arr=await idbGetAll("health");
+    return arr.sort((a,b)=>a.date.localeCompare(b.date));
+  }catch(e){
+    return [];
+  }
 }
 function healthCardHTML(records){
   const today=records.find(r=>r.date===todayStr())||{};
