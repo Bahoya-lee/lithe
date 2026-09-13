@@ -38,6 +38,10 @@
   .view.active{display:block}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   .card{background:var(--card);border-radius:22px;padding:18px;margin:12px 0;box-shadow:var(--shadow)}
+  .watch-card{background:linear-gradient(155deg,#0b1220,#16242f);color:#fff;border:none;border-radius:26px;padding:22px}
+  .watch-card .greet{color:#fff}
+  .watch-card .watch-sub{color:rgba(255,255,255,.62)}
+  .watch-card .badge.good{background:rgba(255,255,255,.12);color:#8ff0c8}
   .card h2,.card h3{margin:0 0 10px;font-size:16px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .stat{background:linear-gradient(135deg,#eaf7f1,#f4fbf8);border:1px solid #dcf1e8;border-radius:16px;padding:12px}
@@ -177,8 +181,8 @@ const STORES = ["profile","checkins","foods","recipes","chat","settings","health
 const DEFAULT_PROVIDER = "openai";
 const DEFAULT_MODEL = "gpt-5-mini";
 const DEFAULT_ENDPOINT = "https://api.openai.com/v1";
-const UPDATE_URL = "https://github.com/Bahoya-lee/lithe/releases/latest/download/Lithe-v1.1.0.apk";
-const APP_VERSION = "1.1.0";
+const UPDATE_URL = "https://github.com/Bahoya-lee/lithe/releases/latest/download/Lithe-v1.2.0.apk";
+const APP_VERSION = "1.2.0";
 const PROVIDERS = {
   openai:{label:"OpenAI", vision:true, endpoint:"https://api.openai.com/v1", model:"gpt-5-mini", models:["gpt-5-mini","gpt-5.1","gpt-5.5","gpt-5.1-mini"]},
   deepseek:{label:"DeepSeek", vision:false, endpoint:"https://api.deepseek.com", model:"deepseek-v4-flash-vision-exp", models:["deepseek-v4-flash-vision-exp","deepseek-chat","deepseek-reasoner"], visionModels:["deepseek-v4-flash-vision-exp"]}
@@ -380,10 +384,10 @@ function calorieRingSVG(target,consumed){
   const color=target?(pct>=1?"#e05252":(pct>=0.8?"#e6a23c":"#3eb489")):"#d6dee1";
   const label=target?Math.round(target-consumed):"--";
   return `<svg width="118" height="118" viewBox="0 0 118 118" role="img" aria-label="剩余热量">
-    <circle cx="59" cy="59" r="${r}" fill="none" stroke="#e9f1ef" stroke-width="12"/>
+    <circle cx="59" cy="59" r="${r}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="12"/>
     <circle cx="59" cy="59" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c*(1-pct)).toFixed(1)}" transform="rotate(-90 59 59)"/>
-    <text x="59" y="56" text-anchor="middle" font-size="21" font-weight="700" fill="#17242a">${label}</text>
-    <text x="59" y="75" text-anchor="middle" font-size="10" fill="#6b7a80">剩余 kcal</text>
+    <text x="59" y="56" text-anchor="middle" font-size="21" font-weight="700" fill="#ffffff">${label}</text>
+    <text x="59" y="75" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.65)">剩余 kcal</text>
   </svg>`;
 }
 function planCardHTML(){
@@ -445,15 +449,15 @@ async function renderHome(){
   const profileMissing = !profile || !profile.heightCm || !profile.birthDate;
   el.innerHTML=`
     ${profileMissing?`<div class="notice warn">请先在「我的」里完善身高、出生日期等身体数据，才能计算 BMI 与每日建议摄入。</div>`:""}
-    <div class="card">
+    <div class="card watch-card">
       <div class="flex" style="align-items:center">
         <div style="flex:1.25">
-          <div class="greet">${greeting()} 🌿</div>
-          <div style="font-size:13px;color:var(--muted);margin-top:2px">${todayStr()}</div>
+          <div class="greet">${greeting()}</div>
+          <div class="watch-sub" style="font-size:13px;margin-top:2px">${todayStr()}</div>
           <div style="margin-top:6px"><span class="badge good">目标：${goalText(profile)}</span></div>
-          <div style="margin-top:14px;font-size:13px;color:var(--muted)">今日热量预算</div>
-          <div style="font-size:30px;font-weight:800">${target!=null?target:"--"}<span style="font-size:14px;color:var(--muted)"> kcal</span></div>
-          <div class="small muted">${remaining!=null?(remaining>=0?"还可摄入 "+remaining+" kcal":"已超出 "+Math.abs(remaining)+" kcal"):"完善资料后可计算"}</div>
+          <div class="watch-sub" style="margin-top:14px;font-size:13px">今日热量预算</div>
+          <div style="font-size:30px;font-weight:800">${target!=null?target:"--"}<span class="watch-sub" style="font-size:14px"> kcal</span></div>
+          <div class="small watch-sub">${remaining!=null?(remaining>=0?"还可摄入 "+remaining+" kcal":"已超出 "+Math.abs(remaining)+" kcal"):"完善资料后可计算"}</div>
         </div>
         <div class="ring">${calorieRingSVG(target,consumed)}</div>
       </div>
@@ -571,10 +575,10 @@ function renderChat(){
       <div class="muted">${providerVision()?"拍照分析食物 · 基于身体数据给出减重建议":"文字记录食物 · 基于身体数据给出减重建议（当前模型不支持图片）"}</div>
       ${hasKey?"":`<div class="notice warn">尚未配置 API Key，请到「我的」填写后使用 AI 功能。</div>`}
       <div class="quick-row">
-        <button onclick="triggerPhoto()">📷 拍照分析</button>
-        <button onclick="startTextFood()">📝 文字记录</button>
-        <button onclick="aiTrendAdvice()">📊 健康建议</button>
-        <button onclick="aiGenerateRecipe()">🥗 生成食谱</button>
+        <button onclick="triggerPhoto()">拍照分析</button>
+        <button onclick="startTextFood()">文字记录</button>
+        <button onclick="aiTrendAdvice()">健康建议</button>
+        <button onclick="aiGenerateRecipe()">生成食谱</button>
       </div>
     </div>
     <div class="notice">⚠️ AI 建议仅供参考，不构成医疗诊断。如有疾病、孕期或异常指标，请务必咨询医生或注册营养师。</div>
