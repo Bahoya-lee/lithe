@@ -363,6 +363,12 @@ function greeting(){
   if(h<18) return "下午好";
   return "晚上好";
 }
+function goalText(p){
+  if(!p) return "未设置目标";
+  if(p.goal==="lose") return "减重";
+  if(p.goal==="gain") return "增肌";
+  return "保持身材";
+}
 function trendSummary(checks){
   if(!checks||checks.length<2) return "记录两次体重后显示趋势";
   const d=+(checks[checks.length-1].weightKg-checks[checks.length-2].weightKg).toFixed(1);
@@ -379,6 +385,46 @@ function calorieRingSVG(target,consumed){
     <text x="59" y="56" text-anchor="middle" font-size="21" font-weight="700" fill="#17242a">${label}</text>
     <text x="59" y="75" text-anchor="middle" font-size="10" fill="#6b7a80">剩余 kcal</text>
   </svg>`;
+}
+function planCardHTML(){
+  const plan=settings&&settings.dailyPlan;
+  if(plan && plan.date===todayStr()){
+    return `<div class="card">
+      <div class="flex" style="justify-content:space-between;align-items:center">
+        <h2 style="margin:0">今日计划</h2>
+        <button class="ghost" style="flex:none" onclick="generateDailyPlan()">重新生成</button>
+      </div>
+      <div class="grid2 mt">
+        <div class="stat"><div class="k">建议摄入</div><div class="v">${Math.round(plan.calorieIntake||0)}</div><div class="s">kcal</div></div>
+        <div class="stat"><div class="k">建议活动消耗</div><div class="v">${Math.round(plan.calorieBurn||0)}</div><div class="s">kcal</div></div>
+      </div>
+      ${plan.exercise?`<div class="mt"><b>今日锻炼</b><div class="small muted">${esc(plan.exercise)}</div></div>`:""}
+      ${plan.nutrition?`<div class="mt"><b>饮食要点</b><div class="small muted">${esc(plan.nutrition)}</div></div>`:""}
+      ${plan.notes?`<div class="mt"><b>注意</b><div class="small muted">${esc(plan.notes)}</div></div>`:""}
+    </div>`;
+  }
+  return `<div class="card">
+    <h2 style="margin:0">今日计划</h2>
+    <div class="muted mt">根据你的目标和身体数据，生成每日热量摄入、消耗和锻炼安排。</div>
+    <div class="row mt"><button onclick="generateDailyPlan()">生成今日计划</button></div>
+  </div>`;
+}
+async function generateDailyPlan(){
+  if(!getApiKey()){ showToast("请先在「我的」配置 API Key"); return; }
+  showToast("正在生成今日计划…");
+  try{
+    const ctx=await healthContext();
+    const prompt="请根据下面的用户资料和目标，生成今日个性化计划。严格只输出 JSON，格式：{\"calorieIntake\":0,\"calorieBurn\":0,\"exercise\":\"\",\"nutrition\":\"\",\"notes\":\"\"}。calorieIntake 是建议摄入热量(kcal)，calorieBurn 是建议额外活动消耗(kcal)，exercise 是具体锻炼动作、组数和时长，nutrition 是饮食要点，notes 是注意事项。\n\n"+ctx;
+    const reply=await callAI([{role:"user",content:prompt}], healthInstructions(), true);
+    const plan=extractJson(reply);
+    if(!plan || plan.calorieIntake==null) throw new Error("计划解析失败");
+    settings.dailyPlan=Object.assign({date:todayStr()}, plan);
+    await idbPut("settings",settings);
+    showToast("今日计划已生成");
+    renderHome();
+  }catch(e){
+    showToast("生成失败："+e.message);
+  }
 }
 async function renderHome(){
   const el=$("#view-home");
@@ -404,6 +450,7 @@ async function renderHome(){
         <div style="flex:1.25">
           <div class="greet">${greeting()} 🌿</div>
           <div style="font-size:13px;color:var(--muted);margin-top:2px">${todayStr()}</div>
+          <div style="margin-top:6px"><span class="badge good">目标：${goalText(profile)}</span></div>
           <div style="margin-top:14px;font-size:13px;color:var(--muted)">今日热量预算</div>
           <div style="font-size:30px;font-weight:800">${target!=null?target:"--"}<span style="font-size:14px;color:var(--muted)"> kcal</span></div>
           <div class="small muted">${remaining!=null?(remaining>=0?"还可摄入 "+remaining+" kcal":"已超出 "+Math.abs(remaining)+" kcal"):"完善资料后可计算"}</div>
@@ -411,6 +458,7 @@ async function renderHome(){
         <div class="ring">${calorieRingSVG(target,consumed)}</div>
       </div>
     </div>
+    ${planCardHTML()}
     <div class="card">
       <div class="flex" style="align-items:flex-start">
         <div style="flex:1.2">
@@ -886,7 +934,7 @@ async function healthContext(){
   let line="";
   if(profile){
     const age=calcAge(profile.birthDate);
-    const goalTxt=profile.goal==="lose"?"减重":(profile.goal==="gain"?"增重":"保持");
+    const goalTxt=profile.goal==="lose"?"减重":(profile.goal==="gain"?"增肌":"保持身材");
     line+="性别："+(profile.gender==="male"?"男":(profile.gender==="female"?"女":"其他"))+"；年龄："+(age!=null?age:"未知")+"；身高："+profile.heightCm+"cm；目标："+goalTxt+
       (profile.targetWeightKg?"（目标体重 "+profile.targetWeightKg+"kg）":"")+"。\n";
   }
@@ -1255,8 +1303,8 @@ function renderMe(){
       <label>目标</label>
       <select id="pf-goal">
         <option value="lose" ${p.goal!=="gain"&&p.goal!=="maintain"?"selected":""}>减重</option>
-        <option value="maintain" ${p.goal==="maintain"?"selected":""}>保持</option>
-        <option value="gain" ${p.goal==="gain"?"selected":""}>增重</option>
+        <option value="maintain" ${p.goal==="maintain"?"selected":""}>保持身材</option>
+        <option value="gain" ${p.goal==="gain"?"selected":""}>增肌</option>
       </select>
       <label>每周目标减重 (kg)</label>
       <input id="pf-weekly" type="number" step="0.1" min="0.1" max="1.5" value="${p.weeklyLossKg||0.5}">
@@ -1350,7 +1398,7 @@ async function saveSettings(){
   const provDef=PROVIDERS[prov]||PROVIDERS.openai;
   const model=$("#set-model").value.trim()||provDef.model;
   const endpoint=$("#set-endpoint").value.trim()||provDef.endpoint;
-  const base={id:"main",provider:prov,model,endpoint,apiKeyPersist:persist,personaName:$("#set-persona-name").value.trim()||"Piggy",personaPrompt:$("#set-persona-prompt").value.trim()};
+  const base={id:"main",provider:prov,model,endpoint,apiKeyPersist:persist,personaName:$("#set-persona-name").value.trim()||"Piggy",personaPrompt:$("#set-persona-prompt").value.trim(),dailyPlan:settings.dailyPlan};
   if(persist){
     memoryApiKey="";
     settings={...base,apiKey:key};
