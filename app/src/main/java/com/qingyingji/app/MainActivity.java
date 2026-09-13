@@ -1,14 +1,6 @@
 package com.qingyingji.app;
 
-import android.Manifest;
-import android.app.Activity;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -22,20 +14,45 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
+import androidx.health.connect.client.HealthConnectClient;
+import androidx.health.connect.client.PermissionController;
+import androidx.health.connect.client.aggregate.AggregateMetric;
+import androidx.health.connect.client.aggregate.AggregationResult;
+import androidx.health.connect.client.permission.HealthPermission;
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord;
+import androidx.health.connect.client.records.StepsRecord;
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord;
+import androidx.health.connect.client.records.metadata.DataOrigin;
+import androidx.health.connect.client.request.AggregateRequest;
+import androidx.health.connect.client.time.TimeRangeFilter;
+import androidx.health.connect.client.units.Energy;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
-public class MainActivity extends Activity {
+import kotlin.coroutines.Continuation;
+import kotlin.coroutines.CoroutineContext;
+import kotlin.coroutines.EmptyCoroutineContext;
+import kotlin.ResultKt;
+
+public class MainActivity extends AppCompatActivity {
     private static final int FILE_CHOOSER_RESULT = 1001;
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private Uri currentPhotoUri;
+    private ActivityResultLauncher<Set<String>> healthPermissionLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,12 +103,28 @@ public class MainActivity extends Activity {
         });
 
         webView.addJavascriptInterface(this, "HealthBridge");
-        if (Build.VERSION.SDK_INT >= 29 &&
-                checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.ACTIVITY_RECOGNITION}, 200);
-        }
+        registerHealthPermissionLauncher();
 
         webView.loadUrl("file:///android_asset/www/index.html");
+    }
+
+    private void registerHealthPermissionLauncher() {
+        if (Build.VERSION.SDK_INT < 34) {
+            return;
+        }
+        HealthConnectClient client = getHealthConnectClient();
+        if (client == null) {
+            return;
+        }
+        healthPermissionLauncher = registerForActivityResult(
+                PermissionController.createRequestPermissionResultContract(),
+                granted -> {
+                    if (granted == null || granted.isEmpty()) {
+                        dispatchHealthResult("{\"error\":\"未授权读取健康数据\"}");
+                        return;
+                    }
+                    readHealthData();
+                });
     }
 
     private void openFileChooser(WebChromeClient.FileChooserParams params) {
@@ -152,64 +185,185 @@ public class MainActivity extends Activity {
     }
 
     @JavascriptInterface
-    public String readSteps() {
-        if (Build.VERSION.SDK_INT >= 29 &&
-                checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
-            return "{\"steps\":null,\"error\":\"未授权活动识别权限\"}";
+    public String healthStatus() {
+        HealthConnectClient client = getHealthConnectClient();
+        if (client == null) {
+            return "{\"available\":false,\"error\":\"当前设备不支持 Health Connect，或未安装 Google Health Connect\"}";
         }
-
-        SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        if (sensorManager == null) {
-            return "{\"steps\":null,\"error\":\"传感器服务不可用\"}";
-        }
-        Sensor stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
-        if (stepSensor == null) {
-            return "{\"steps\":null,\"error\":\"设备无计步传感器\"}";
-        }
-
-        final float[] value = new float[]{-1f};
-        final boolean[] got = new boolean[]{false};
-        SensorEventListener listener = new SensorEventListener() {
-            @Override
-            public void onSensorChanged(SensorEvent event) {
-                value[0] = event.values[0];
-                got[0] = true;
+        try {
+            Set<String> granted = awaitSet(client.getPermissionController().getGrantedPermissions(blockingContinuation()));
+            Set<String> required = requiredPermissions();
+            if (granted.containsAll(required)) {
+                return "{\"available\":true,\"granted\":true}";
             }
-
-            @Override
-            public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            Set<String> missing = new HashSet<>(required);
+            missing.removeAll(granted);
+            StringBuilder arr = new StringBuilder("[");
+            boolean first = true;
+            for (String p : missing) {
+                if (!first) arr.append(",");
+                arr.append("\"").append(p).append("\"");
+                first = false;
             }
-        };
-
-        sensorManager.registerListener(listener, stepSensor, SensorManager.SENSOR_DELAY_UI);
-        long t0 = System.currentTimeMillis();
-        while (!got[0] && System.currentTimeMillis() - t0 < 1200L) {
-            try {
-                Thread.sleep(60L);
-            } catch (InterruptedException e) {
-                break;
-            }
+            arr.append("]");
+            return "{\"available\":true,\"granted\":false,\"missing\":" + arr + "}";
+        } catch (Throwable t) {
+            return "{\"available\":true,\"granted\":false,\"error\":\"健康数据权限读取失败\"}";
         }
-        sensorManager.unregisterListener(listener);
-
-        if (!got[0]) {
-            return "{\"steps\":null,\"error\":\"未能读取步数\"}";
-        }
-
-        long total = (long) value[0];
-        SharedPreferences sp = getSharedPreferences("lithe_health", MODE_PRIVATE);
-        String today = todayStr();
-        String lastDay = sp.getString("step_day", "");
-        long baseline = sp.getLong("step_baseline", total);
-        if (!today.equals(lastDay)) {
-            baseline = total;
-            sp.edit().putLong("step_baseline", baseline).putString("step_day", today).apply();
-        }
-        long steps = Math.max(0L, total - baseline);
-        return "{\"steps\":" + steps + ",\"totalSinceBoot\":" + total + "}";
     }
 
-    private String todayStr() {
-        return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+    @JavascriptInterface
+    public void requestHealthPermissions() {
+        runOnUiThread(() -> {
+            if (healthPermissionLauncher == null) {
+                dispatchHealthResult("{\"error\":\"当前设备不支持 Health Connect\"}");
+                return;
+            }
+            try {
+                healthPermissionLauncher.launch(requiredPermissions());
+            } catch (Throwable t) {
+                dispatchHealthResult("{\"error\":\"无法打开健康数据授权\"}");
+            }
+        });
+    }
+
+    @JavascriptInterface
+    public void readHealth() {
+        readHealthData();
+    }
+
+    private HealthConnectClient getHealthConnectClient() {
+        if (Build.VERSION.SDK_INT < 34) {
+            return null;
+        }
+        try {
+            if (HealthConnectClient.getSdkStatus(this) != HealthConnectClient.SDK_AVAILABLE) {
+                return null;
+            }
+            return HealthConnectClient.getOrCreate(this);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private Set<String> requiredPermissions() {
+        Set<String> permissions = new HashSet<>();
+        permissions.add(HealthPermission.READ_STEPS);
+        permissions.add(HealthPermission.READ_ACTIVE_CALORIES_BURNED);
+        try {
+            permissions.add(HealthPermission.READ_TOTAL_CALORIES_BURNED);
+        } catch (Throwable ignored) {
+        }
+        return permissions;
+    }
+
+    private void readHealthData() {
+        HealthConnectClient client = getHealthConnectClient();
+        if (client == null) {
+            dispatchHealthResult("{\"error\":\"当前设备不支持 Health Connect\"}");
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                Instant start = LocalDate.now(ZoneId.systemDefault())
+                        .atStartOfDay(ZoneId.systemDefault())
+                        .toInstant();
+                Instant end = Instant.now();
+
+                Set<AggregateMetric<?>> metrics = new HashSet<>();
+                metrics.add(StepsRecord.COUNT_TOTAL);
+                metrics.add(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL);
+                boolean hasTotalCalories = true;
+                try {
+                    metrics.add(TotalCaloriesBurnedRecord.ENERGY_TOTAL);
+                } catch (Throwable t) {
+                    hasTotalCalories = false;
+                }
+
+                AggregateRequest request = new AggregateRequest(
+                        metrics,
+                        TimeRangeFilter.between(start, end),
+                        Collections.<DataOrigin>emptySet());
+                AggregationResult response = awaitResult(client.aggregate(request, blockingContinuation()));
+
+                Long steps = response.get(StepsRecord.COUNT_TOTAL);
+                Energy activeEnergy = response.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL);
+                Energy totalEnergy = hasTotalCalories
+                        ? response.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)
+                        : null;
+
+                StringBuilder json = new StringBuilder("{");
+                json.append("\"steps\":").append(steps == null ? "null" : steps).append(",");
+                json.append("\"activeCalories\":")
+                        .append(activeEnergy == null ? "null" : Math.round(activeEnergy.getKilocalories())).append(",");
+                json.append("\"totalCalories\":")
+                        .append(totalEnergy == null ? "null" : Math.round(totalEnergy.getKilocalories()));
+                json.append("}");
+                dispatchHealthResult(json.toString());
+            } catch (Throwable t) {
+                dispatchHealthResult("{\"error\":\"健康数据读取失败：\"}");
+            }
+        }).start();
+    }
+
+    private void dispatchHealthResult(final String json) {
+        runOnUiThread(() -> {
+            if (webView != null) {
+                String safe = json == null ? "{}" : json.replace("\\", "\\\\").replace("'", "\\'");
+                webView.evaluateJavascript(
+                        "window.onHealthBridgeResult && window.onHealthBridgeResult('" + safe + "');", null);
+            }
+        });
+    }
+
+    private <T> T awaitResult(Object value) {
+        if (value instanceof BlockingContinuation) {
+            return ((BlockingContinuation<T>) value).await();
+        }
+        return (T) value;
+    }
+
+    private Set<String> awaitSet(Object value) {
+        return awaitResult(value);
+    }
+
+    private <T> BlockingContinuation<T> blockingContinuation() {
+        return new BlockingContinuation<>();
+    }
+
+    private static final class BlockingContinuation<T> implements Continuation<T> {
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private final AtomicReference<Object> result = new AtomicReference<>();
+
+        @Override
+        public CoroutineContext getContext() {
+            return EmptyCoroutineContext.INSTANCE;
+        }
+
+        @Override
+        public void resumeWith(Object resumeValue) {
+            result.set(resumeValue);
+            latch.countDown();
+        }
+
+        T await() {
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("健康数据读取被中断", e);
+            }
+            Object value = result.get();
+            if (value == null) {
+                throw new RuntimeException("健康数据读取失败");
+            }
+            try {
+                ResultKt.throwOnFailure(value);
+            } catch (Throwable t) {
+                throw new RuntimeException("健康数据读取失败", t);
+            }
+            return (T) value;
+        }
     }
 }

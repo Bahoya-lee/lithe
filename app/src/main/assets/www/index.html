@@ -182,7 +182,7 @@ const DEFAULT_PROVIDER = "openai";
 const DEFAULT_MODEL = "gpt-5-mini";
 const DEFAULT_ENDPOINT = "https://api.openai.com/v1";
 const UPDATE_URL = "https://github.com/Bahoya-lee/lithe/releases/latest/download/Lithe-latest.apk";
-const APP_VERSION = "1.2.1";
+const APP_VERSION = "1.3.0";
 const PROVIDERS = {
   openai:{label:"OpenAI", vision:true, endpoint:"https://api.openai.com/v1", model:"gpt-5-mini", models:["gpt-5-mini","gpt-5.1","gpt-5.5","gpt-5.1-mini"]},
   deepseek:{label:"DeepSeek", vision:false, endpoint:"https://api.deepseek.com", model:"deepseek-v4-flash-vision-exp", models:["deepseek-v4-flash-vision-exp","deepseek-chat","deepseek-reasoner"], visionModels:["deepseek-v4-flash-vision-exp"]}
@@ -1118,7 +1118,7 @@ function healthCardHTML(records){
       <div class="stat"><div class="k">活动消耗</div><div class="v">${today.activeCalories!=null?today.activeCalories:"--"}</div><div class="s">kcal</div></div>
     </div>
     <div class="row mt">
-      <button onclick="syncHealth()">🔄 从手机读取步数</button>
+      <button onclick="syncHealth()">🔄 从手机同步健康数据</button>
       <button class="ghost" onclick="openHealthForm()">✏️ 手动记录</button>
     </div>
     <div class="grid2 mt" id="healthForm" style="display:none">
@@ -1147,7 +1147,20 @@ async function saveHealthForm(){
 async function syncHealth(){
   let steps=null;
   try{
-    if(window.HealthBridge && window.HealthBridge.readSteps){
+    if(window.HealthBridge && window.HealthBridge.healthStatus){
+      const status=JSON.parse(window.HealthBridge.healthStatus()||"{}");
+      if(status && status.available && status.granted){
+        showToast("正在从 Health Connect 同步…");
+        window.HealthBridge.readHealth();
+        return;
+      }
+      if(status && status.available && !status.granted){
+        showToast("需要授权后才能读取手机健康数据");
+        window.HealthBridge.requestHealthPermissions();
+        return;
+      }
+      showToast((status&&status.error)||"当前设备不支持自动读取，请手动记录");
+    }else if(window.HealthBridge && window.HealthBridge.readSteps){
       const j=JSON.parse(window.HealthBridge.readSteps()||"{}");
       if(j && j.steps!=null){ steps=+j.steps; }
       else{ showToast((j&&j.error)||"未读取到步数"); }
@@ -1166,6 +1179,31 @@ async function syncHealth(){
     }
   }catch(e){
     showToast("同步失败："+e.message);
+  }
+}
+
+async function onHealthBridgeResult(raw){
+  try{
+    const j=typeof raw==="object"?raw:JSON.parse(raw||"{}");
+    if(!j || j.error){
+      showToast(j&&j.error?j.error:"未读取到健康数据");
+      return;
+    }
+    if(j.steps==null && j.activeCalories==null && j.totalCalories==null){
+      showToast("手机里还没有今天的健康数据");
+      return;
+    }
+    await idbPut("health",{
+      id:todayStr(),date:todayStr(),
+      steps:j.steps!=null?Math.round(+j.steps):null,
+      activeCalories:j.activeCalories!=null?Math.round(+j.activeCalories):null,
+      totalCalories:j.totalCalories!=null?Math.round(+j.totalCalories):null,
+      source:"health_connect",updatedAt:Date.now()
+    });
+    showToast("已同步今日步数与消耗");
+    renderTrends();
+  }catch(e){
+    showToast("健康数据同步失败："+e.message);
   }
 }
 
