@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3eb489">
+<title>Lithe</title>
+<style>
+  :root{
+    --brand:#3eb489;
+    --brand-2:#6fd4ad;
+    --brand-soft:#eaf7f1;
+    --ink:#17242a;
+    --muted:#7a8a91;
+    --line:#e7edf0;
+    --bg:#f4f8f6;
+    --card:#ffffff;
+    --danger:#e05252;
+    --warn:#e6a23c;
+    --ok:#2f9e44;
+    --shadow:0 10px 30px rgba(23,36,42,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5;
+    padding-bottom:calc(70px + env(safe-area-inset-bottom));
+  }
+  #app{max-width:560px;margin:0 auto;padding:0 14px}
+  header.app-head{
+    position:sticky;top:0;z-index:20;background:rgba(244,248,246,.9);backdrop-filter:blur(12px);
+    padding:calc(12px + env(safe-area-inset-top)) 0 10px;display:flex;align-items:center;justify-content:space-between;
+  }
+  header.app-head h1{font-size:26px;margin:0;letter-spacing:-.4px;font-weight:800}
+  header.app-head .date{color:var(--muted);font-size:13px}
+  .view{display:none;animation:fade .18s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .card{background:var(--card);border-radius:22px;padding:18px;margin:12px 0;box-shadow:var(--shadow)}
+  .card h2,.card h3{margin:0 0 10px;font-size:16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:linear-gradient(135deg,#eaf7f1,#f4fbf8);border:1px solid #dcf1e8;border-radius:16px;padding:12px}
+  .stat .k{color:var(--muted);font-size:12px}
+  .stat .v{font-size:22px;font-weight:700;margin-top:2px}
+  .stat .s{color:var(--muted);font-size:11px;margin-top:2px}
+  .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .badge.good{background:#e6f7ec;color:var(--ok)}
+  .badge.mid{background:#fdf3e0;color:var(--warn)}
+  .badge.high{background:#fdeaea;color:var(--danger)}
+  .badge.low{background:#e9f2fd;color:#2f6fd0}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
+  input,select,textarea{
+    width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:12px;font-size:15px;
+    background:#fbfcfc;color:var(--ink);outline:none;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--brand-2);background:#fff}
+  textarea{resize:vertical;min-height:80px}
+  button{
+    border:0;border-radius:12px;padding:11px 16px;font-size:15px;font-weight:600;cursor:pointer;
+    background:var(--brand);color:#fff;
+  }
+  button:active{transform:scale(.98)}
+  button.ghost{background:#edf3f4;color:var(--ink)}
+  button.danger{background:var(--danger)}
+  button.warn{background:var(--warn)}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .row{display:flex;gap:10px;align-items:center}
+  .row>*{flex:1}
+  .row button{flex:0 0 auto}
+  nav.bottom{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);
+    border-top:1px solid var(--line);display:flex;justify-content:space-around;
+    padding:6px 0 calc(6px + env(safe-area-inset-bottom));
+    box-shadow:0 -4px 20px rgba(0,0,0,.04);
+  }
+  nav.bottom button{
+    background:none;color:var(--muted);font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:3px;
+    flex:1;padding:4px 0;
+  }
+  nav.bottom button .ic{font-size:21px}
+  nav.bottom button.active{color:var(--brand)}
+  .chat-box{border-radius:16px;background:#fff;box-shadow:var(--shadow);overflow:hidden;margin:12px 0}
+  .chat-scroll{height:58vh;min-height:320px;overflow-y:auto;padding:14px;background:#f8fafb}
+  .msg{max-width:82%;margin:8px 0;padding:10px 12px;border-radius:18px;font-size:14px;white-space:pre-wrap;word-break:break-word}
+  .msg.user{margin-left:auto;background:var(--brand);color:#fff;border-bottom-right-radius:4px}
+  .msg.assistant{display:flex;gap:8px;align-items:flex-start;background:none;border:none;padding:0;max-width:88%}
+  .msg.assistant .avatar{width:30px;height:30px;border-radius:50%;flex:none;object-fit:cover;margin-top:2px}
+  .msg.assistant .bubble{background:#fff;border:1px solid var(--line);border-radius:18px 18px 18px 4px;padding:10px 12px}
+  .msg img{max-width:100%;border-radius:10px;margin-top:6px;display:block}
+  .msg .mtime{font-size:10px;opacity:.6;margin-top:4px}
+  .typing{color:var(--muted);font-size:13px;padding:6px 4px}
+  .composer{display:flex;gap:8px;padding:10px;background:#fff;border-top:1px solid var(--line)}
+  .composer input{flex:1}
+  .composer button{flex:0 0 auto}
+  .quick-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .quick-row button{flex:1 1 30%;background:var(--brand-soft);color:var(--brand);font-size:13px;padding:10px 8px}
+  .notice{background:#fdf6e9;border:1px solid #f3e3bd;color:#8a6d1f;border-radius:12px;padding:10px 12px;font-size:12px;margin:10px 0}
+  .notice.warn{background:#fdecec;border-color:#f2caca;color:#9b3d3d}
+  .food-card,.recipe-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0;background:#fff}
+  .food-card .top,.recipe-card .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .food-card h4,.recipe-card h4{margin:0 0 4px;font-size:15px}
+  .food-card img{width:100%;border-radius:10px;margin-top:8px;max-height:220px;object-fit:cover}
+  .macro{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .macro span{background:#f0f4f5;border-radius:8px;padding:4px 8px;font-size:12px;color:#3f5158}
+  .chart-wrap{width:100%;overflow-x:auto}
+  .chart-wrap svg{display:block}
+  .tabs{display:flex;background:#edf5f1;border-radius:14px;padding:3px;gap:3px;margin:8px 0}
+  .tabs button{flex:1;background:none;color:var(--muted);padding:9px;font-size:14px;border-radius:12px}
+  .tabs button.active{background:#fff;color:var(--brand);box-shadow:0 2px 10px rgba(0,0,0,.07)}
+  .delta-up{color:var(--danger);font-weight:700}
+  .delta-down{color:var(--ok);font-weight:700}
+  .ring{flex:none;width:118px;height:118px}
+  .greet{font-size:16px;font-weight:600}
+  .list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .list-item:last-child{border-bottom:0}
+  .muted{color:var(--muted);font-size:12px}
+  .small{font-size:12px}
+  .hidden{display:none!important}
+  .mt{margin-top:10px}
+  .flex{display:flex;gap:8px;align-items:center}
+  .flex>*{flex:1}
+  .icon-btn{width:38px;flex:0 0 38px;padding:0;font-size:18px;background:#edf3f4;color:var(--ink)}
+  #toast{
+    position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:rgba(23,36,42,.92);color:#fff;
+    padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:90%;text-align:center;
+  }
+  #toast.show{opacity:1}
+  #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+  #lightbox img{max-width:94vw;max-height:94vh;border-radius:12px}
+  .preview-img{max-width:180px;max-height:120px;border-radius:12px;border:1px solid var(--line);display:block;margin-top:8px}
+  .ing-row{display:grid;grid-template-columns:1.4fr .8fr .7fr repeat(4,.7fr) auto;gap:6px;margin-bottom:6px;align-items:center}
+  .ing-row input{padding:8px;font-size:13px}
+  .ing-row button{flex:none;padding:8px}
+  @media(max-width:380px){
+    .ing-row{grid-template-columns:1fr 1fr;gap:6px}
+    .ing-row button{grid-column:span 2}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="app-head">
+    <h1>Lithe</h1>
+    <span class="date" id="todayLabel"></span>
+  </header>
+
+  <main>
+    <section id="view-home" class="view active"></section>
+    <section id="view-ai" class="view"></section>
+    <section id="view-recipes" class="view"></section>
+    <section id="view-trends" class="view"></section>
+    <section id="view-me" class="view"></section>
+  </main>
+
+  <nav class="bottom" id="bottomNav">
+    <button data-view="home" class="active"><span class="ic">🏠</span>打卡</button>
+    <button data-view="ai"><span class="ic">🐷</span>教练</button>
+    <button data-view="recipes"><span class="ic">🥗</span>食谱</button>
+    <button data-view="trends"><span class="ic">📈</span>趋势</button>
+    <button data-view="me"><span class="ic">👤</span>我的</button>
+  </nav>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
+<div id="lightbox" class="hidden" onclick="this.classList.add('hidden')"><img id="lightboxImg" alt=""></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============ 常量与状态 ============ */
+const DB_NAME = "light-weight-tracker";
+const DB_VERSION = 1;
+const STORES = ["profile","checkins","foods","recipes","chat","settings","health"];
+const DEFAULT_PROVIDER = "openai";
+const DEFAULT_MODEL = "gpt-5-mini";
+const DEFAULT_ENDPOINT = "https://api.openai.com/v1";
+const UPDATE_URL = "https://github.com/Bahoya-lee/lithe/releases/latest";
+const APP_VERSION = "1.0.0";
+const PROVIDERS = {
+  openai:{label:"OpenAI", vision:true, endpoint:"https://api.openai.com/v1", model:"gpt-5-mini", models:["gpt-5-mini","gpt-5.1","gpt-5.5","gpt-5.1-mini"]},
+  deepseek:{label:"DeepSeek", vision:false, endpoint:"https://api.deepseek.com", model:"deepseek-v4-flash-vision-exp", models:["deepseek-v4-flash-vision-exp","deepseek-chat","deepseek-reasoner"], visionModels:["deepseek-v4-flash-vision-exp"]}
+};
+const ACTIVITY = {
+  sedentary:1.2, light:1.375, moderate:1.55, active:1.725, very_active:1.9
+};
+
+let db = null;
+let profile = null;
+let settings = null;
+let memoryApiKey = "";
+let chat = [];
+let currentView = "home";
+let period = "week";
+let pendingPhoto = null;      // 已压缩、待分析的图片 dataURL
+let textFoodMode = false;     // 文字记录食物模式
+let msgSeq = 0;               // 聊天消息序号（用于流式更新 DOM）
+let lastProvider = null;      // 用于服务商切换时重置模型/地址
+
+/* ============ 工具函数 ============ */
+function $(s){ return document.querySelector(s); }
+function $$(s){ return Array.from(document.querySelectorAll(s)); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function dateStr(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function todayStr(){ return dateStr(new Date()); }
+function showToast(msg){
+  const t=$("#toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(t._timer); t._timer=setTimeout(()=>t.classList.remove("show"),2600);
+}
+function showLightbox(src){ $("#lightboxImg").src=src; $("#lightbox").classList.remove("hidden"); }
+function openUpdate(){ if(UPDATE_URL) location.href=UPDATE_URL; }
+function uid(){ return (crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2)); }
+
+function calcAge(birth){
+  if(!birth) return null;
+  const b=new Date(birth+"T00:00:00"); if(isNaN(b)) return null;
+  const now=new Date(); let a=now.getFullYear()-b.getFullYear();
+  const m=now.getMonth()-b.getMonth();
+  if(m<0 || (m===0 && now.getDate()<b.getDate())) a--;
+  return Math.max(0,a);
+}
+function calcBMI(w,h){
+  if(!w||!h) return null;
+  const m=h/100; return +(w/(m*m)).toFixed(1);
+}
+function bmiText(b){
+  if(b==null) return {t:"--",cls:""};
+  if(b<18.5) return {t:"偏瘦",cls:"low"};
+  if(b<24) return {t:"正常",cls:"good"};
+  if(b<28) return {t:"超重",cls:"mid"};
+  return {t:"肥胖",cls:"high"};
+}
+function calcBMR(p,w){
+  if(!p||!p.heightCm||!w) return null;
+  const age=calcAge(p.birthDate); if(age==null) return null;
+  const base=10*w+6.25*p.heightCm-5*age;
+  if(p.gender==="female") return Math.round(base-161);
+  if(p.gender==="male") return Math.round(base+5);
+  return Math.round(base-78); // 其他：取中间值
+}
+function calcTDEE(p,w){
+  const bmr=calcBMR(p,w); if(!bmr) return null;
+  const f=ACTIVITY[p.activityLevel]||1.2;
+  return Math.round(bmr*f);
+}
+function calcCalorieTarget(p,w){
+  const tdee=calcTDEE(p,w); if(!tdee) return null;
+  let target=tdee;
+  if(p.goal==="lose"){
+    const kgPerWeek=Math.max(0.2, Math.min(1.5, Number(p.weeklyLossKg)||0.5));
+    target=tdee-Math.round(kgPerWeek*7700/7);
+  } else if(p.goal==="gain"){
+    target=tdee+300;
+  }
+  return Math.max(1200,target);
+}
+function currentWeight(checks){
+  if(!checks.length) return null;
+  return checks[checks.length-1].weightKg;
+}
+
+/* ============ IndexedDB ============ */
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=()=>{
+      const d=req.result;
+      STORES.forEach(s=>{ if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath:"id"}); });
+    };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+function idbGet(store,key){
+  return new Promise((resolve,reject)=>{
+    const t=db.transaction(store,"readonly").objectStore(store).get(key);
+    t.onsuccess=()=>resolve(t.result); t.onerror=()=>reject(t.error);
+  });
+}
+function idbGetAll(store){
+  return new Promise((resolve,reject)=>{
+    const t=db.transaction(store,"readonly").objectStore(store).getAll();
+    t.onsuccess=()=>resolve(t.result||[]); t.onerror=()=>reject(t.error);
+  });
+}
+function idbPut(store,val){
+  return new Promise((resolve,reject)=>{
+    const t=db.transaction(store,"readwrite").objectStore(store).put(val);
+    t.onsuccess=()=>resolve(); t.onerror=()=>reject(t.error);
+  });
+}
+function idbDelete(store,key){
+  return new Promise((resolve,reject)=>{
+    const t=db.transaction(store,"readwrite").objectStore(store).delete(key);
+    t.onsuccess=()=>resolve(); t.onerror=()=>reject(t.error);
+  });
+}
+function idbClear(store){
+  return new Promise((resolve,reject)=>{
+    const t=db.transaction(store,"readwrite").objectStore(store).clear();
+    t.onsuccess=()=>resolve(); t.onerror=()=>reject(t.error);
+  });
+}
+
+/* ============ 加载与初始化 ============ */
+async function init(){
+  $("#todayLabel").textContent = new Date().toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"short"});
+  try{ db=await openDB(); }catch(e){ showToast("本地数据库打开失败，请用现代浏览器或 HTTPS 打开"); return; }
+  profile=(await idbGet("profile","main"))||null;
+  settings=Object.assign({apiKey:"",model:"",endpoint:"",apiKeyPersist:true,provider:DEFAULT_PROVIDER,personaName:"Piggy",personaPrompt:"你是一位专业、冷静、说话自然的减重教练。给建议要具体、简洁、像真人教练，避免套话和 AI 腔。"},(await idbGet("settings","main"))||{});
+  const prov=provider();
+  if(!settings.model) settings.model=prov.model;
+  if(!settings.endpoint) settings.endpoint=prov.endpoint;
+  const chatRec=(await idbGet("chat","main"))||{messages:[]};
+  chat=chatRec.messages||[];
+  bindNav();
+  bindGlobal();
+  switchView("home");
+}
+
+function bindNav(){
+  $$("#bottomNav button").forEach(b=>{
+    b.onclick=()=>switchView(b.dataset.view);
+  });
+}
+function switchView(v){
+  currentView=v;
+  $$(".view").forEach(s=>s.classList.remove("active"));
+  $("#view-"+v).classList.add("active");
+  $$("#bottomNav button").forEach(b=>b.classList.toggle("active",b.dataset.view===v));
+  if(v==="home") renderHome();
+  if(v==="ai") renderChat();
+  if(v==="recipes") renderRecipes();
+  if(v==="trends") renderTrends();
+  if(v==="me") renderMe();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function bindGlobal(){
+  $("#fileInput").addEventListener("change",async e=>{
+    const f=e.target.files[0]; e.target.value="";
+    if(!f) return;
+    try{
+      pendingPhoto=await compressImage(await readFile(f),1024,0.78);
+      showToast("照片已就绪");
+      if(currentView!=="ai") switchView("ai");
+      renderChat();
+    }catch(err){ showToast("读取照片失败："+err.message); }
+  });
+}
+
+/* ============ 首页 ============ */
+function greeting(){
+  const h=new Date().getHours();
+  if(h<5) return "夜深了，早点休息";
+  if(h<11) return "早上好";
+  if(h<14) return "中午好";
+  if(h<18) return "下午好";
+  return "晚上好";
+}
+function trendSummary(checks){
+  if(!checks||checks.length<2) return "记录两次体重后显示趋势";
+  const d=+(checks[checks.length-1].weightKg-checks[checks.length-2].weightKg).toFixed(1);
+  return "较上次 "+(d>0?"+":"")+d+" kg";
+}
+function calorieRingSVG(target,consumed){
+  const r=48, c=2*Math.PI*r;
+  const pct=target&&target>0?Math.min(1,Math.max(0,consumed/target)):0;
+  const color=target?(pct>=1?"#e05252":(pct>=0.8?"#e6a23c":"#3eb489")):"#d6dee1";
+  const label=target?Math.round(target-consumed):"--";
+  return `<svg width="118" height="118" viewBox="0 0 118 118" role="img" aria-label="剩余热量">
+    <circle cx="59" cy="59" r="${r}" fill="none" stroke="#e9f1ef" stroke-width="12"/>
+    <circle cx="59" cy="59" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c*(1-pct)).toFixed(1)}" transform="rotate(-90 59 59)"/>
+    <text x="59" y="56" text-anchor="middle" font-size="21" font-weight="700" fill="#17242a">${label}</text>
+    <text x="59" y="75" text-anchor="middle" font-size="10" fill="#6b7a80">剩余 kcal</text>
+  </svg>`;
+}
+async function renderHome(){
+  const el=$("#view-home");
+  const checks=(await idbGetAll("checkins")).sort((a,b)=>a.date.localeCompare(b.date));
+  const w=currentWeight(checks);
+  const bmi=calcBMI(w,profile&&profile.heightCm);
+  const bmr=calcBMR(profile,w);
+  const tdee=calcTDEE(profile,w);
+  const target=calcCalorieTarget(profile,w);
+  const todayChecks=checks.filter(c=>c.date===todayStr());
+  const today=todayChecks[todayChecks.length-1]||{};
+  const foods=(await idbGetAll("foods")).filter(f=>f.date===todayStr()).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const foodTotal=foods.reduce((a,f)=>({cal:(a.cal||0)+(f.calories||0),p:(a.p||0)+(f.protein||0),c:(a.c||0)+(f.carbs||0),f:(a.f||0)+(f.fat||0)}),{cal:0,p:0,c:0,f:0});
+  const consumed=Math.round(foodTotal.cal+(today.caloriesIn||0));
+  const remaining=target!=null?target-consumed:null;
+  const bmiC=bmiText(bmi);
+
+  const profileMissing = !profile || !profile.heightCm || !profile.birthDate;
+  el.innerHTML=`
+    ${profileMissing?`<div class="notice warn">请先在「我的」里完善身高、出生日期等身体数据，才能计算 BMI 与每日建议摄入。</div>`:""}
+    <div class="card">
+      <div class="flex" style="align-items:center">
+        <div style="flex:1.25">
+          <div class="greet">${greeting()} 🌿</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px">${todayStr()}</div>
+          <div style="margin-top:14px;font-size:13px;color:var(--muted)">今日热量预算</div>
+          <div style="font-size:30px;font-weight:800">${target!=null?target:"--"}<span style="font-size:14px;color:var(--muted)"> kcal</span></div>
+          <div class="small muted">${remaining!=null?(remaining>=0?"还可摄入 "+remaining+" kcal":"已超出 "+Math.abs(remaining)+" kcal"):"完善资料后可计算"}</div>
+        </div>
+        <div class="ring">${calorieRingSVG(target,consumed)}</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="flex" style="align-items:flex-start">
+        <div style="flex:1.2">
+          <h2 style="margin-bottom:4px">体重</h2>
+          <div style="margin:10px 0 4px;font-size:32px;font-weight:800">${w!=null?w.toFixed(1):"--"}<span style="font-size:15px;color:var(--muted)"> kg</span></div>
+          <div>${bmi!=null?`BMI ${bmi} <span class="badge ${bmiC.cls}">${bmiC.t}</span>`:"<span class='muted'>BMI 需完善资料</span>"}</div>
+          <div class="small muted mt">${trendSummary(checks)}</div>
+        </div>
+        <div style="flex:1">
+          <div class="stat" style="margin-bottom:8px"><div class="k">基础代谢</div><div class="v">${bmr||"--"}</div><div class="s">kcal/天</div></div>
+          <div class="stat"><div class="k">目标摄入</div><div class="v">${target||"--"}</div><div class="s">kcal/天</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>${w!=null?"更新今日数据":"记录今日体重"}</h2>
+      <div class="grid2">
+        <div>
+          <label>体重 (kg)</label>
+          <input id="ci-weight" type="number" step="0.1" inputmode="decimal" placeholder="如 68.5" value="${today.weightKg||""}">
+        </div>
+        <div>
+          <label>摄入 (kcal)</label>
+          <input id="ci-cal" type="number" inputmode="numeric" placeholder="可选" value="${today.caloriesIn||""}">
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label>体脂率 (%)</label>
+          <input id="ci-fat" type="number" step="0.1" inputmode="decimal" placeholder="可选" value="${today.bodyFatPct||""}">
+        </div>
+        <div>
+          <label>心情</label>
+          <select id="ci-mood">
+            <option value="">不记录</option>
+            ${["😄 很好","🙂 不错","😐 一般","😕 疲惫","😫 很差"].map(m=>`<option value="${m}" ${today.mood===m?"selected":""}>${m}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <label>备注</label>
+      <textarea id="ci-note" placeholder="运动、饮食或身体感受…">${esc(today.note||"")}</textarea>
+      <div class="row mt">
+        <button onclick="saveCheckin()">💾 保存打卡</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>今日食物记录 <span class="muted">(${foods.length} 条)</span></h2>
+      <div class="grid2">
+        <div class="stat"><div class="k">热量</div><div class="v">${Math.round(foodTotal.cal)}</div><div class="s">kcal</div></div>
+        <div class="stat"><div class="k">蛋白质</div><div class="v">${Math.round(foodTotal.p)}</div><div class="s">g</div></div>
+        <div class="stat"><div class="k">碳水</div><div class="v">${Math.round(foodTotal.c)}</div><div class="s">g</div></div>
+        <div class="stat"><div class="k">脂肪</div><div class="v">${Math.round(foodTotal.f)}</div><div class="s">g</div></div>
+      </div>
+      ${foods.length?foods.map(f=>foodCardHTML(f)).join(""):`<div class="muted mt">今天还没有拍照记录食物，去「AI 助手」拍一张吧。</div>`}
+    </div>
+  `;
+}
+
+async function saveCheckin(){
+  const w=parseFloat($("#ci-weight").value);
+  if(!w || w<20 || w>400){ showToast("请输入有效体重 (20–400 kg)"); return; }
+  const rec={
+    id:todayStr(),
+    date:todayStr(),
+    weightKg:+w.toFixed(1),
+    caloriesIn:$("#ci-cal").value?parseFloat($("#ci-cal").value):null,
+    bodyFatPct:$("#ci-fat").value?parseFloat($("#ci-fat").value):null,
+    mood:$("#ci-mood").value||null,
+    note:$("#ci-note").value.trim(),
+    updatedAt:Date.now()
+  };
+  await idbPut("checkins",rec);
+  showToast("已保存今日打卡");
+  renderHome();
+}
+
+function foodCardHTML(f){
+  const it=(f.items&&f.items.length)?`<div class="small muted">${f.items.map(i=>esc(i.name||i)).join("、")}</div>`:"";
+  return `
+    <div class="food-card">
+      <div class="top">
+        <div><h4>${esc(f.name||"未命名食物")}</h4>${it}</div>
+        <button class="icon-btn" onclick="deleteFood('${f.id}')" title="删除">🗑</button>
+      </div>
+      ${f.image?`<img src="${f.image}" alt="食物照片">`:""}
+      <div class="macro">
+        <span>🔥 ${f.calories!=null?Math.round(f.calories):"--"} kcal</span>
+        <span>🥚 ${f.protein!=null?Math.round(f.protein):"--"}g</span>
+        <span>🍚 ${f.carbs!=null?Math.round(f.carbs):"--"}g</span>
+        <span>🥑 ${f.fat!=null?Math.round(f.fat):"--"}g</span>
+      </div>
+      ${f.notes?`<div class="small muted mt">${esc(f.notes)}</div>`:""}
+    </div>`;
+}
+
+async function deleteFood(id){
+  if(!confirm("删除这条食物记录？")) return;
+  await idbDelete("foods",id); showToast("已删除"); renderHome();
+}
+
+/* ============ AI 助手 ============ */
+function renderChat(){
+  const el=$("#view-ai");
+  const hasKey=getApiKey();
+  el.innerHTML=`
+    <div class="card">
+      <h2>${esc(settings.personaName||"Piggy")} 教练</h2>
+      <div class="muted">${providerVision()?"拍照分析食物 · 基于身体数据给出减重建议":"文字记录食物 · 基于身体数据给出减重建议（当前模型不支持图片）"}</div>
+      ${hasKey?"":`<div class="notice warn">尚未配置 API Key，请到「我的」填写后使用 AI 功能。</div>`}
+      <div class="quick-row">
+        <button onclick="triggerPhoto()">📷 拍照分析</button>
+        <button onclick="startTextFood()">📝 文字记录</button>
+        <button onclick="aiTrendAdvice()">📊 健康建议</button>
+        <button onclick="aiGenerateRecipe()">🥗 生成食谱</button>
+      </div>
+    </div>
+    <div class="notice">⚠️ AI 建议仅供参考，不构成医疗诊断。如有疾病、孕期或异常指标，请务必咨询医生或注册营养师。</div>
+    <div class="chat-box">
+      <div class="chat-scroll" id="chatScroll">
+        ${chat.length?chat.map(m=>msgHTML(m)).join(""):welcomeHTML()}
+        ${pendingPhoto?`<div class="msg user">${pendingPhotoPreview()}</div>`:""}
+        <div id="typing" class="typing hidden">正在思考…</div>
+      </div>
+      <div class="composer">
+        <input id="chatInput" type="text" placeholder="问问体重、饮食或运动…" enterkeyhint="send">
+        <button onclick="sendChat()">发送</button>
+      </div>
+    </div>
+  `;
+  const input=$("#chatInput");
+  input.addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(); });
+  scrollChat();
+}
+
+function welcomeHTML(){
+  const name=(settings&&settings.personaName)||"Piggy";
+  return `<div class="msg assistant" data-msg-id="welcome"><img class="avatar" src="pig-avatar.png" alt=""><span class="bubble">我是 ${name}，你的减重教练。\n可以拍食物给我看，或者直接问饮食、运动的事。先说说你今天吃得怎么样？</span></div>`;
+}
+function msgHTML(m){
+  const img=m.image?`<img src="${m.image}" onclick="showLightbox(this.src)">`:"";
+  if(m.role==="assistant"){
+    return `<div class="msg assistant" data-msg-id="${m.id||""}"><img class="avatar" src="pig-avatar.png" alt=""><span class="bubble">${esc(m.text||"")}${img}</span></div>`;
+  }
+  return `<div class="msg user" data-msg-id="${m.id||""}">${esc(m.text||"")}${img}</div>`;
+}
+function pendingPhotoPreview(){
+  return `<img src="${pendingPhoto}" style="max-width:200px;border-radius:12px;display:block;margin-bottom:6px"><span class="small">照片已附加，输入“分析这张食物”后发送</span>`;
+}
+function scrollChat(){
+  const s=$("#chatScroll"); if(s) s.scrollTop=s.scrollHeight;
+}
+function getApiKey(){ return memoryApiKey || (settings&&settings.apiKey) || ""; }
+
+function triggerPhoto(){ $("#fileInput").click(); }
+
+function startTextFood(){
+  textFoodMode=true;
+  const input=$("#chatInput"); if(!input) return;
+  input.value="请帮我估算这餐的营养：";
+  input.focus();
+  input.setSelectionRange(input.value.length,input.value.length);
+}
+
+async function sendChat(){
+  const input=$("#chatInput");
+  const text=input.value.trim();
+  const hasPhoto=!!pendingPhoto;
+  if(!text && !hasPhoto){ showToast("请输入内容或先拍照"); return; }
+  if(!getApiKey()){ showToast("请先在「我的」配置 API Key"); return; }
+  input.value="";
+  chat.push({role:"user",text:text||"请分析这张食物的营养成分。",image:hasPhoto?pendingPhoto:null,ts:Date.now()});
+  pendingPhoto=null;
+  await saveChat();
+  renderChat();
+  setTyping(true);
+  try{
+    const reply=await callAI(buildChatInput(chat), healthInstructions(), false);
+    chat.push({role:"assistant",text:reply,ts:Date.now()});
+    await saveChat();
+  }catch(e){
+    chat.push({role:"assistant",text:"出错了："+e.message,ts:Date.now()});
+    await saveChat();
+  }
+  setTyping(false);
+  renderChat();
+}
+
+async function saveChat(){
+  await idbPut("chat",{id:"main",messages:chat.slice(-100)});
+}
+function setTyping(on){
+  const t=$("#typing"); if(t) t.classList.toggle("hidden",!on);
+}
+
+function buildChatInput(messages){
+  return messages.slice(-6).filter(m=>m.role==="user"||m.role==="assistant").map(m=>({
+    role:m.role,
+    content:(m.text||"").slice(0,2000)
+  }));
+}
+
+async function aiTrendAdvice(){
+  if(!getApiKey()){ showToast("请先在「我的」配置 API Key"); return; }
+  const ctx=await healthContext();
+  chat.push({role:"user",text:"请根据我目前的健康数据和最近的体重变化，给出一份个性化的减重评估与可执行建议。",ts:Date.now()});
+  await saveChat(); renderChat(); setTyping(true);
+  try{
+    const reply=await callAI([{role:"user",content:"请根据以下资料，给出一份清晰、温和、循证的个性化健康建议（包含：现状判断、饮食建议、运动建议、每周可执行小目标，以及需要警惕并就医的信号）。\n\n"+ctx}], healthInstructions(), false);
+    chat.push({role:"assistant",text:reply,ts:Date.now()}); await saveChat();
+  }catch(e){
+    chat.push({role:"assistant",text:"出错了："+e.message,ts:Date.now()}); await saveChat();
+  }
+  setTyping(false); renderChat();
+}
+
+async function aiGenerateRecipe(){
+  if(!getApiKey()){ showToast("请先在「我的」配置 API Key"); return; }
+  const ctx=await healthContext();
+  chat.push({role:"user",text:"请根据我的热量目标和营养需求，生成一份适合减脂的一日食谱（或一餐），并给出每项食材的估算营养。",ts:Date.now()});
+  await saveChat(); renderChat(); setTyping(true);
+  try{
+    const reply=await callAI([{role:"user",content:"请生成一份个性化减脂食谱，严格只输出 JSON，格式：{\"name\":\"\",\"description\":\"\",\"servings\":1,\"instructions\":\"\",\"ingredients\":[{\"name\":\"\",\"amount\":\"\",\"unit\":\"\",\"calories\":0,\"protein\":0,\"carbs\":0,\"fat\":0}]}。热量目标约见下方资料。\n\n"+ctx}], "你是专业营养师，输出 JSON。", true);
+    const recipe=extractJson(reply);
+    if(recipe && recipe.name){
+      const obj=normalizeRecipe(recipe);
+      chat.push({role:"assistant",text:"✅ 已生成食谱「"+obj.name+"」。点击下方可保存到「食谱」页。\n\n"+recipeSummaryText(obj),ts:Date.now()});
+      chat.push({role:"assistant",text:"<button onclick='saveGeneratedRecipe()'>💾 保存这份食谱</button>",ts:Date.now(),__html:true});
+      window._pendingRecipe=obj;
+    }else{
+      chat.push({role:"assistant",text:reply,ts:Date.now()});
+    }
+    await saveChat();
+  }catch(e){
+    chat.push({role:"assistant",text:"出错了："+e.message,ts:Date.now()}); await saveChat();
+  }
+  setTyping(false); renderChat();
+}
+
+async function saveGeneratedRecipe(){
+  const r=window._pendingRecipe;
+  if(!r){ showToast("没有待保存的食谱"); return; }
+  r.id=uid(); r.createdAt=Date.now();
+  await idbPut("recipes",r);
+  window._pendingRecipe=null;
+  showToast("已保存到食谱");
+  switchView("recipes");
+}
+
+function normalizeRecipe(r){
+  const ing=(r.ingredients||[]).map((i,n)=>({
+    name:i.name||("食材"+(n+1)), amount:String(i.amount||""), unit:i.unit||"",
+    calories:+i.calories||0, protein:+i.protein||0, carbs:+i.carbs||0, fat:+i.fat||0
+  }));
+  return {name:r.name||"AI 食谱", description:r.description||"", servings:+r.servings||1,
+    instructions:r.instructions||"", ingredients:ing};
+}
+function recipeSummaryText(r){
+  const tot=r.ingredients.reduce((a,i)=>({c:a.c+i.calories,p:a.p+i.protein,ch:a.ch+i.carbs,f:a.f+i.fat}),{c:0,p:0,ch:0,f:0});
+  return `热量约 ${Math.round(tot.c)} kcal · 蛋白质 ${Math.round(tot.p)}g · 碳水 ${Math.round(tot.ch)}g · 脂肪 ${Math.round(tot.f)}g`;
+}
+
+/* ============ AI 调用 ============ */
+function provider(){
+  return PROVIDERS[(settings&&settings.provider)||DEFAULT_PROVIDER]||PROVIDERS.openai;
+}
+function providerLabel(){ return provider().label; }
+function modelSupportsVision(){
+  const prov=provider();
+  const m=(settings&&settings.model)||prov.model;
+  if(prov.vision===true) return true;
+  if(prov.visionModels&&prov.visionModels.includes(m)) return true;
+  return /vision/i.test(m);
+}
+function providerVision(){ return modelSupportsVision(); }
+
+async function callAI(input, instructions, jsonMode){
+  if(settings&&settings.provider==="deepseek") return callDeepSeek(input,instructions,jsonMode);
+  return callOpenAI(input,instructions,jsonMode);
+}
+
+async function callOpenAI(input, instructions, jsonMode){
+  const key=getApiKey();
+  if(!key) throw new Error("未配置 API Key");
+  const base=(settings.endpoint||PROVIDERS.openai.endpoint).replace(/\/+$/,"");
+  const body={ model:settings.model||PROVIDERS.openai.model, input };
+  if(instructions) body.instructions=instructions;
+  if(jsonMode) body.text={format:{type:"json_object"}};
+  const resp=await fetch(base+"/responses",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+    body:JSON.stringify(body)
+  });
+  if(!resp.ok){
+    let err=""; try{ err=(await resp.text()).slice(0,300); }catch(_){}
+    throw new Error("API "+resp.status+(err?"："+err:""));
+  }
+  const data=await resp.json();
+  let text=data.output_text;
+  if(!text && Array.isArray(data.output)){
+    text=data.output.map(o=>{
+      if(typeof o.content==="string") return o.content;
+      if(Array.isArray(o.content)) return o.content.map(c=>c.text||"").join("");
+      return "";
+    }).join("\n");
+  }
+  return (text||"").trim();
+}
+
+async function callDeepSeek(input, instructions, jsonMode){
+  const key=getApiKey();
+  if(!key) throw new Error("未配置 API Key");
+  const base=(settings.endpoint||PROVIDERS.deepseek.endpoint).replace(/\/+$/,"");
+  const messages=[];
+  if(instructions) messages.push({role:"system",content:instructions});
+  messages.push(...inputToDeepSeekMessages(input));
+  const resp=await fetch(base+"/chat/completions",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+    body:JSON.stringify({model:settings.model||PROVIDERS.deepseek.model,messages,stream:false})
+  });
+  if(!resp.ok){
+    let err=""; try{ err=(await resp.text()).slice(0,300); }catch(_){}
+    throw new Error("API "+resp.status+(err?"："+err:""));
+  }
+  const data=await resp.json();
+  const c=data.choices&&data.choices[0]&&data.choices[0].message;
+  return (c&&c.content||"").trim();
+}
+function inputToDeepSeekMessages(input){
+  return (input||[]).map(item=>{
+    if(Array.isArray(item.content)){
+      const parts=item.content.map(p=>{
+        if(p.type==="text"||p.type==="input_text") return {type:"text",text:p.text||""};
+        if(p.type==="image_url"||p.type==="input_image"){
+          const url=(p.image_url&&typeof p.image_url==="object")?p.image_url.url:p.image_url;
+          if(url) return {type:"image_url",image_url:{url}};
+        }
+        return null;
+      }).filter(Boolean);
+      return {role:item.role||"user",content:parts};
+    }
+    return {role:item.role||"user",content:item.content||""};
+  });
+}
+
+async function callAIStream(input, instructions, onDelta){
+  if(settings&&settings.provider==="deepseek") return callDeepSeekStream(input,instructions,onDelta);
+  return callOpenAIStream(input,instructions,onDelta);
+}
+
+async function callOpenAIStream(input, instructions, onDelta){
+  const key=getApiKey();
+  if(!key) throw new Error("未配置 API Key");
+  const base=(settings.endpoint||PROVIDERS.openai.endpoint).replace(/\/+$/,"");
+  const body={ model:settings.model||PROVIDERS.openai.model, input, stream:true };
+  if(instructions) body.instructions=instructions;
+  const resp=await fetch(base+"/responses",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+    body:JSON.stringify(body)
+  });
+  if(!resp.ok){
+    let err=""; try{ err=(await resp.text()).slice(0,300); }catch(_){}
+    throw new Error("API "+resp.status+(err?"："+err:""));
+  }
+  const reader=resp.body.getReader();
+  const dec=new TextDecoder("utf-8");
+  let buf="", full="";
+  while(true){
+    const {done,value}=await reader.read();
+    if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    let idx;
+    while((idx=buf.indexOf("\n"))>=0){
+      const line=buf.slice(0,idx).trim(); buf=buf.slice(idx+1);
+      if(!line.startsWith("data:")) continue;
+      const payload=line.slice(5).trim();
+      if(payload==="[DONE]") continue;
+      try{
+        const j=JSON.parse(payload);
+        if(j.type==="response.output_text.delta" && j.delta){
+          full+=j.delta; onDelta(j.delta);
+        }
+      }catch(_){}
+    }
+  }
+  return full;
+}
+
+async function callDeepSeekStream(input, instructions, onDelta){
+  const key=getApiKey();
+  if(!key) throw new Error("未配置 API Key");
+  const base=(settings.endpoint||PROVIDERS.deepseek.endpoint).replace(/\/+$/,"");
+  const messages=[];
+  if(instructions) messages.push({role:"system",content:instructions});
+  messages.push(...inputToDeepSeekMessages(input));
+  const resp=await fetch(base+"/chat/completions",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+    body:JSON.stringify({model:settings.model||PROVIDERS.deepseek.model,messages,stream:true})
+  });
+  if(!resp.ok){
+    let err=""; try{ err=(await resp.text()).slice(0,300); }catch(_){}
+    throw new Error("API "+resp.status+(err?"："+err:""));
+  }
+  const reader=resp.body.getReader();
+  const dec=new TextDecoder("utf-8");
+  let buf="", full="";
+  while(true){
+    const {done,value}=await reader.read();
+    if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    let idx;
+    while((idx=buf.indexOf("\n"))>=0){
+      const line=buf.slice(0,idx).trim(); buf=buf.slice(idx+1);
+      if(!line.startsWith("data:")) continue;
+      const payload=line.slice(5).trim();
+      if(payload==="[DONE]") continue;
+      try{
+        const j=JSON.parse(payload);
+        const delta=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;
+        if(delta){ full+=delta; onDelta(delta); }
+      }catch(_){}
+    }
+  }
+  return full;
+}
+
+async function analyzeFoodPhoto(dataUrl){
+  const prompt="你是专业的注册营养师。请分析这张食物照片，估算一份/整盘食物的总热量和营养成分。严格只输出 JSON，格式：{\"name\":\"食物名称\",\"estimated_weight_g\":0,\"calories\":0,\"protein_g\":0,\"carbs_g\":0,\"fat_g\":0,\"fiber_g\":0,\"sugar_g\":0,\"sodium_mg\":0,\"items\":[{\"name\":\"\",\"portion\":\"\"}],\"notes\":\"简短说明\"}。无法确定的项目估算并注明。不要输出 JSON 以外的任何文字。";
+  const reply=await callAI([{role:"user",content:[
+    {type:"input_text",text:prompt},
+    {type:"input_image",image_url:dataUrl,detail:"high"}
+  ]}], "你是专业的注册营养师，请给出谨慎、合理的营养估算。", true);
+  const j=extractJson(reply);
+  if(!j || j.calories==null) throw new Error("未能解析营养结果，请重拍或换一张清晰照片");
+  return j;
+}
+
+function nutritionText(j){
+  return `📊 营养估算：${j.name||"食物"}\n`+
+    `热量 ${Math.round(j.calories||0)} kcal · 蛋白质 ${Math.round(j.protein_g||0)}g · 碳水 ${Math.round(j.carbs_g||0)}g · 脂肪 ${Math.round(j.fat_g||0)}g\n`+
+    `${j.notes?"说明："+j.notes+"\n":""}已保存到今日食物记录。`;
+}
+async function analyzeFoodText(desc){
+  const prompt="你是专业的注册营养师。请根据下面的食物描述，估算总热量和营养成分。严格只输出 JSON，格式：{\"name\":\"食物名称\",\"estimated_weight_g\":0,\"calories\":0,\"protein_g\":0,\"carbs_g\":0,\"fat_g\":0,\"fiber_g\":0,\"sugar_g\":0,\"sodium_mg\":0,\"items\":[{\"name\":\"\",\"portion\":\"\"}],\"notes\":\"简短说明\"}。不要输出 JSON 以外的任何文字。\n食物描述："+desc;
+  const reply=await callAI([{role:"user",content:prompt}],"你是专业的注册营养师，请给出谨慎、合理的营养估算。",true);
+  const j=extractJson(reply);
+  if(!j || j.calories==null) throw new Error("未能解析营养结果，请补充食物份量描述");
+  return j;
+}
+
+function extractJson(text){
+  const m=String(text).match(/\{[\s\S]*\}/);
+  if(m){ try{ return JSON.parse(m[0]); }catch(e){} }
+  return null;
+}
+
+function healthInstructions(){
+  const name=(settings&&settings.personaName)||"Piggy";
+  const persona=(settings&&settings.personaPrompt)||"你是一位专业、冷静、自然的减重教练。";
+  return "你的名字叫 "+name+"。"+persona+" 结合用户身体数据和体重趋势，给出具体、简洁、像真人教练的建议。安全要求：不推荐极端节食或危险做法；每周减重 0.5-1kg 较合理；你不是医生，不能替代医疗诊断，遇到疾病、孕期、代谢异常、快速异常掉重等情况应建议就医。用简体中文，避免套话和 AI 腔。";
+}
+
+async function healthContext(){
+  const checks=(await idbGetAll("checkins")).sort((a,b)=>a.date.localeCompare(b.date));
+  const w=currentWeight(checks);
+  const bmi=calcBMI(w,profile&&profile.heightCm);
+  const bmr=calcBMR(profile,w), tdee=calcTDEE(profile,w), target=calcCalorieTarget(profile,w);
+  let line="";
+  if(profile){
+    const age=calcAge(profile.birthDate);
+    const goalTxt=profile.goal==="lose"?"减重":(profile.goal==="gain"?"增重":"保持");
+    line+="性别："+(profile.gender==="male"?"男":(profile.gender==="female"?"女":"其他"))+"；年龄："+(age!=null?age:"未知")+"；身高："+profile.heightCm+"cm；目标："+goalTxt+
+      (profile.targetWeightKg?"（目标体重 "+profile.targetWeightKg+"kg）":"")+"。\n";
+  }
+  line+="当前体重："+(w!=null?w+"kg":"未知")+"；BMI："+(bmi!=null?bmi:"未知")+"；基础代谢："+(bmr||"未知")+"kcal；每日消耗估算："+(tdee||"未知")+"kcal；建议摄入："+(target||"未知")+"kcal。\n";
+  if(checks.length){
+    const recent=checks.slice(-5).map(c=>c.date+"="+c.weightKg+"kg").join("，");
+    line+="最近体重记录："+recent+"。";
+    const first=checks[0].weightKg, last=checks[checks.length-1].weightKg;
+    line+="\n从首次到最近共变化 "+(last-first).toFixed(1)+"kg。";
+  }else{
+    line+="暂无体重打卡记录。";
+  }
+  return line;
+}
+
+/* ============ 食谱 ============ */
+let editingRecipeId=null;
+async function renderRecipes(){
+  const el=$("#view-recipes");
+  const recipes=(await idbGetAll("recipes")).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  el.innerHTML=`
+    <div class="card">
+      <h2>我的食谱</h2>
+      <div class="muted">自定义低卡食谱，记录每份的热量与营养。</div>
+      <div class="row mt"><button onclick="openRecipeForm()">➕ 新建食谱</button></div>
+      <div id="recipeList" class="mt">
+        ${recipes.length?recipes.map(recipeCardHTML).join(""):`<div class="muted mt">还没有食谱，点击「新建食谱」创建，或让 AI 生成后保存。</div>`}
+      </div>
+    </div>
+    <div class="card hidden" id="recipeForm">
+      <h2 id="recipeFormTitle">新建食谱</h2>
+      <label>食谱名称</label>
+      <input id="rp-name" placeholder="如：鸡胸肉蔬菜碗">
+      <label>份数</label>
+      <input id="rp-servings" type="number" min="1" step="1" value="1">
+      <label>简介</label>
+      <input id="rp-desc" placeholder="一句话说明这道菜">
+      <label>做法说明</label>
+      <textarea id="rp-instructions" placeholder="步骤…"></textarea>
+      <label>食材与营养（每份总营养自动累加）</label>
+      <div id="ingRows"></div>
+      <div class="row mt"><button class="ghost" onclick="addIngredientRow()">➕ 添加食材</button></div>
+      <div class="row mt">
+        <button onclick="saveRecipeForm()">💾 保存食谱</button>
+        <button class="ghost" onclick="closeRecipeForm()">取消</button>
+      </div>
+    </div>
+  `;
+}
+
+function recipeCardHTML(r){
+  const tot=(r.ingredients||[]).reduce((a,i)=>({c:a.c+(+i.calories||0),p:a.p+(+i.protein||0),ch:a.ch+(+i.carbs||0),f:a.f+(+i.fat||0)}),{c:0,p:0,ch:0,f:0});
+  return `
+    <div class="recipe-card">
+      <div class="top">
+        <div><h4>${esc(r.name)}</h4><div class="small muted">${esc(r.description||"")} · ${r.servings||1} 份</div></div>
+        <div class="flex" style="gap:6px">
+          <button class="icon-btn" onclick="openRecipeForm('${r.id}')">✏️</button>
+          <button class="icon-btn" onclick="deleteRecipe('${r.id}')">🗑</button>
+        </div>
+      </div>
+      <div class="macro">
+        <span>🔥 ${Math.round(tot.c)} kcal</span>
+        <span>🥚 ${Math.round(tot.p)}g</span>
+        <span>🍚 ${Math.round(tot.ch)}g</span>
+        <span>🥑 ${Math.round(tot.f)}g</span>
+      </div>
+    </div>`;
+}
+
+async function openRecipeForm(id){
+  editingRecipeId=id||null;
+  const form=$("#recipeForm"); if(!form) return;
+  form.classList.remove("hidden");
+  $("#recipeFormTitle").textContent=id?"编辑食谱":"新建食谱";
+  const ingRows=$("#ingRows"); ingRows.innerHTML="";
+  if(id){
+    const r=await idbGet("recipes",id);
+    if(r){
+      $("#rp-name").value=r.name||""; $("#rp-servings").value=r.servings||1;
+      $("#rp-desc").value=r.description||""; $("#rp-instructions").value=r.instructions||"";
+      (r.ingredients||[]).forEach(i=>addIngredientRow(i));
+    }
+  }else{
+    $("#rp-name").value=""; $("#rp-servings").value=1; $("#rp-desc").value=""; $("#rp-instructions").value="";
+    addIngredientRow();
+  }
+  form.scrollIntoView({behavior:"smooth"});
+}
+function closeRecipeForm(){
+  editingRecipeId=null;
+  const f=$("#recipeForm"); if(f) f.classList.add("hidden");
+}
+function addIngredientRow(data){
+  const wrap=$("#ingRows"); if(!wrap) return;
+  const d=data||{};
+  const div=document.createElement("div"); div.className="ing-row";
+  div.innerHTML=`
+    <input class="i-name" placeholder="食材" value="${esc(d.name||"")}">
+    <input class="i-amount" placeholder="数量" value="${esc(d.amount||"")}">
+    <input class="i-unit" placeholder="单位" value="${esc(d.unit||"")}">
+    <input class="i-cal" type="number" placeholder="kcal" value="${d.calories!=null?d.calories:""}">
+    <input class="i-p" type="number" placeholder="蛋白g" value="${d.protein!=null?d.protein:""}">
+    <input class="i-c" type="number" placeholder="碳水g" value="${d.carbs!=null?d.carbs:""}">
+    <input class="i-f" type="number" placeholder="脂肪g" value="${d.fat!=null?d.fat:""}">
+    <button class="icon-btn" onclick="this.parentElement.remove()" title="删除">✕</button>`;
+  wrap.appendChild(div);
+}
+async function saveRecipeForm(){
+  const name=$("#rp-name").value.trim();
+  if(!name){ showToast("请填写食谱名称"); return; }
+  const ingredients=[];
+  $$("#ingRows .ing-row").forEach(row=>{
+    const g=s=>row.querySelector(s).value;
+    const nm=g(".i-name").trim();
+    if(!nm) return;
+    ingredients.push({name:nm, amount:g(".i-amount").trim(), unit:g(".i-unit").trim(),
+      calories:+g(".i-cal")||0, protein:+g(".i-p")||0, carbs:+g(".i-c")||0, fat:+g(".i-f")||0});
+  });
+  const rec={id:editingRecipeId||uid(), name, servings:+$("#rp-servings").value||1,
+    description:$("#rp-desc").value.trim(), instructions:$("#rp-instructions").value.trim(), ingredients,
+    createdAt:(await idbGet("recipes",editingRecipeId||""))?.createdAt||Date.now()};
+  await idbPut("recipes",rec);
+  showToast("食谱已保存"); closeRecipeForm(); renderRecipes();
+}
+async function deleteRecipe(id){
+  if(!confirm("删除这个食谱？")) return;
+  await idbDelete("recipes",id); showToast("已删除"); renderRecipes();
+}
+
+/* ============ 趋势 ============ */
+async function renderTrends(){
+  const el=$("#view-trends");
+  const checks=(await idbGetAll("checkins")).sort((a,b)=>a.date.localeCompare(b.date));
+  const health=await getHealthRecords();
+  el.innerHTML=`
+    <div class="card">
+      <h2>体重变化趋势</h2>
+      <div class="tabs">
+        <button class="${period==="week"?"active":""}" onclick="setPeriod('week')">周</button>
+        <button class="${period==="month"?"active":""}" onclick="setPeriod('month')">月</button>
+        <button class="${period==="year"?"active":""}" onclick="setPeriod('year')">年</button>
+      </div>
+      <div id="deltaCards"></div>
+      <div class="chart-wrap" id="trendChart"></div>
+    </div>
+    ${healthCardHTML(health)}
+    <div class="card">
+      <h2>打卡记录</h2>
+      <div id="checkinList">${checks.length?checks.slice().reverse().map(c=>`
+        <div class="list-item">
+          <span>${c.date} ${c.mood?c.mood:""}</span>
+          <span style="font-weight:700">${c.weightKg.toFixed(1)} kg</span>
+        </div>`).join(""):`<div class="muted">暂无记录，先去首页打卡吧。</div>`}
+      </div>
+    </div>
+  `;
+  drawTrend();
+}
+function setPeriod(p){ period=p; renderTrends(); }
+
+async function getHealthRecords(){
+  const arr=await idbGetAll("health");
+  return arr.sort((a,b)=>a.date.localeCompare(b.date));
+}
+function healthCardHTML(records){
+  const today=records.find(r=>r.date===todayStr())||{};
+  const recent=records.slice().reverse().slice(0,7);
+  return `<div class="card">
+    <h2>健康数据</h2>
+    <div class="grid2">
+      <div class="stat"><div class="k">今日步数</div><div class="v">${today.steps!=null?today.steps:"--"}</div></div>
+      <div class="stat"><div class="k">活动消耗</div><div class="v">${today.activeCalories!=null?today.activeCalories:"--"}</div><div class="s">kcal</div></div>
+    </div>
+    <div class="row mt">
+      <button onclick="syncHealth()">🔄 从手机读取步数</button>
+      <button class="ghost" onclick="openHealthForm()">✏️ 手动记录</button>
+    </div>
+    <div class="grid2 mt" id="healthForm" style="display:none">
+      <div><label>步数</label><input id="h-steps" type="number" inputmode="numeric" placeholder="步数"></div>
+      <div><label>活动消耗 (kcal)</label><input id="h-active" type="number" inputmode="numeric" placeholder="kcal"></div>
+      <div><label>总消耗 (kcal)</label><input id="h-total" type="number" inputmode="numeric" placeholder="kcal"></div>
+      <div style="display:flex;align-items:flex-end"><button class="ghost" onclick="saveHealthForm()">保存</button></div>
+    </div>
+    <div class="mt">
+      ${recent.length?`<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr><th style="text-align:left">日期</th><th>步数</th><th>活动 kcal</th><th>总 kcal</th></tr></thead><tbody>`+recent.map(r=>`<tr style="border-top:1px solid var(--line)"><td>${r.date.slice(5)}</td><td>${r.steps!=null?r.steps:"--"}</td><td>${r.activeCalories!=null?r.activeCalories:"--"}</td><td>${r.totalCalories!=null?r.totalCalories:"--"}</td></tr>`).join("")+`</tbody></table>`:`<div class="muted">暂无健康数据</div>`}
+    </div>
+  </div>`;
+}
+function openHealthForm(){
+  const f=$("#healthForm"); if(f) f.style.display=(f.style.display==="none"?"grid":"none");
+}
+async function saveHealthForm(){
+  await idbPut("health",{id:todayStr(),date:todayStr(),
+    steps:$("#h-steps").value?parseInt($("#h-steps").value):null,
+    activeCalories:$("#h-active").value?parseInt($("#h-active").value):null,
+    totalCalories:$("#h-total").value?parseInt($("#h-total").value):null,
+    source:"manual",updatedAt:Date.now()});
+  showToast("健康数据已保存");
+  renderTrends();
+}
+async function syncHealth(){
+  let steps=null;
+  try{
+    if(window.HealthBridge && window.HealthBridge.readSteps){
+      const j=JSON.parse(window.HealthBridge.readSteps()||"{}");
+      if(j && j.steps!=null){ steps=+j.steps; }
+      else{ showToast((j&&j.error)||"未读取到步数"); }
+    }else{
+      showToast("当前设备不支持自动读取，请手动记录");
+    }
+    if(steps!=null){
+      const checks=(await idbGetAll("checkins")).sort((a,b)=>a.date.localeCompare(b.date));
+      const w=currentWeight(checks)||70;
+      const active=Math.round(steps*0.04*(w/70));
+      const bmr=calcBMR(profile,w)||1500;
+      const total=Math.round(bmr+active);
+      await idbPut("health",{id:todayStr(),date:todayStr(),steps,activeCalories:active,totalCalories:total,source:"device",updatedAt:Date.now()});
+      showToast("已同步今日步数与估算消耗");
+      renderTrends();
+    }
+  }catch(e){
+    showToast("同步失败："+e.message);
+  }
+}
+
+function periodPoints(checks){
+  const now=new Date();
+  if(period==="week"){
+    const days=[];
+    for(let i=6;i>=0;i--){ const d=new Date(now); d.setDate(now.getDate()-i); const s=dateStr(d);
+      const c=checks.find(x=>x.date===s); days.push({label:s.slice(5).replace("-","/"), value:c?c.weightKg:null, date:s}); }
+    return days;
+  }
+  if(period==="month"){
+    const days=[];
+    for(let i=29;i>=0;i--){ const d=new Date(now); d.setDate(now.getDate()-i); const s=dateStr(d);
+      const c=checks.find(x=>x.date===s); days.push({label:s.slice(5).replace("-","/"), value:c?c.weightKg:null, date:s}); }
+    return days;
+  }
+  // 年：按月平均
+  const months=[]; const cur=new Date(now.getFullYear(),now.getMonth(),1);
+  for(let i=11;i>=0;i--){
+    const d=new Date(cur.getFullYear(),cur.getMonth()-i,1);
+    const key=d.getFullYear()+"-"+(d.getMonth()+1);
+    const inM=checks.filter(c=>c.date.startsWith(key));
+    const avg=inM.length?inM.reduce((a,c)=>a+c.weightKg,0)/inM.length:null;
+    months.push({label:(d.getMonth()+1)+"月",value:avg!=null?+avg.toFixed(1):null,count:inM.length});
+  }
+  return months;
+}
+
+function drawTrend(){
+  const checksWrap=$("#trendChart"); if(!checksWrap) return;
+  const all=[];
+  periodPoints(checksCache||[]).forEach(()=>{});
+  // 为保持函数纯计算，重新获取
+  idbGetAll("checkins").then(checks=>{
+    checks.sort((a,b)=>a.date.localeCompare(b.date));
+    const pts=periodPoints(checks);
+    const valid=pts.filter(p=>p.value!=null);
+    const deltaCards=$("#deltaCards");
+    if(valid.length>=2){
+      const first=valid[0].value, last=valid[valid.length-1].value;
+      const d=+(last-first).toFixed(1);
+      const cls=d>0?"delta-up":"delta-down";
+      const label=period==="week"?"本周":period==="month"?"本月":"今年";
+      deltaCards.innerHTML=`
+        <div class="grid2">
+          <div class="stat"><div class="k">${label}变化</div><div class="v ${cls}">${d>0?"+":""}${d} kg</div></div>
+          <div class="stat"><div class="k">最低 / 最高</div><div class="v" style="font-size:16px">${Math.min(...valid.map(x=>x.value)).toFixed(1)} / ${Math.max(...valid.map(x=>x.value)).toFixed(1)}</div></div>
+        </div>`;
+    }else{
+      deltaCards.innerHTML=`<div class="muted">数据不足，需要至少两次打卡才能计算变化。</div>`;
+    }
+    drawLineChart(checksWrap,pts);
+  });
+}
+
+let checksCache=[];
+async function drawTrendInit(){ checksCache=await idbGetAll("checkins"); }
+
+function drawLineChart(container,pts){
+  container.innerHTML="";
+  const valid=pts.filter(p=>p.value!=null);
+  if(valid.length<2){
+    container.innerHTML=`<div class="muted" style="padding:20px;text-align:center">记录不足，暂无法绘制趋势图</div>`;
+    return;
+  }
+  const W=600,H=260,L=48,R=14,T=18,B=34;
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.style.width="100%"; svg.style.height="auto";
+  const vals=valid.map(p=>p.value);
+  let min=Math.min(...vals), max=Math.max(...vals);
+  if(min===max){ min-=0.5; max+=0.5; }
+  const pad=(max-min)*0.18; min-=pad; max+=pad;
+  const x=i=>L+(W-L-R)*i/(pts.length-1);
+  const y=v=>T+(H-T-B)*(1-(v-min)/(max-min));
+  const gridTicks=4;
+  for(let i=0;i<=gridTicks;i++){
+    const v=min+(max-min)*i/gridTicks, yy=y(v);
+    const line=document.createElementNS("http://www.w3.org/2000/svg","line");
+    line.setAttribute("x1",L);line.setAttribute("x2",W-R);line.setAttribute("y1",yy);line.setAttribute("y2",yy);
+    line.setAttribute("stroke","#e6ecef");line.setAttribute("stroke-width",1);
+    svg.appendChild(line);
+    const t=document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("x",L-8);t.setAttribute("y",yy+4);t.setAttribute("text-anchor","end");t.setAttribute("font-size",10);t.setAttribute("fill","#6b7a80");
+    t.textContent=v.toFixed(1); svg.appendChild(t);
+  }
+  // 标签（最多取 6 个）
+  const step=Math.max(1,Math.ceil(pts.length/6));
+  pts.forEach((p,i)=>{
+    if(i%step!==0 && i!==pts.length-1) return;
+    const t=document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("x",x(i));t.setAttribute("y",H-12);t.setAttribute("text-anchor","middle");t.setAttribute("font-size",10);t.setAttribute("fill","#6b7a80");
+    t.textContent=p.label; svg.appendChild(t);
+  });
+  // 折线
+  let path="", first=true;
+  pts.forEach((p,i)=>{
+    if(p.value==null) return;
+    path+=(first?"M":"L")+x(i).toFixed(1)+" "+y(p.value).toFixed(1)+" "; first=false;
+  });
+  const pl=document.createElementNS("http://www.w3.org/2000/svg","path");
+  pl.setAttribute("d",path);pl.setAttribute("fill","none");pl.setAttribute("stroke","#0f9f8f");pl.setAttribute("stroke-width",2.5);pl.setAttribute("stroke-linejoin","round");
+  svg.appendChild(pl);
+  // 数据点
+  pts.forEach((p,i)=>{
+    if(p.value==null) return;
+    const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+    c.setAttribute("cx",x(i));c.setAttribute("cy",y(p.value));c.setAttribute("r",3);c.setAttribute("fill","#0f9f8f");
+    svg.appendChild(c);
+  });
+  container.appendChild(svg);
+}
+
+/* ============ 我的 / 设置 ============ */
+function renderMe(){
+  const el=$("#view-me");
+  const p=profile||{};
+  el.innerHTML=`
+    <div class="card">
+      <h2>身体数据</h2>
+      <div class="grid2">
+        <div><label>性别</label><select id="pf-gender">
+          <option value="male" ${p.gender==="male"?"selected":""}>男</option>
+          <option value="female" ${p.gender==="female"?"selected":""}>女</option>
+          <option value="other" ${p.gender==="other"?"selected":""}>其他</option>
+        </select></div>
+        <div><label>出生日期</label><input id="pf-birth" type="date" value="${esc(p.birthDate||"")}"></div>
+        <div><label>身高 (cm)</label><input id="pf-height" type="number" step="0.1" inputmode="decimal" value="${p.heightCm||""}" placeholder="如 168"></div>
+        <div><label>目标体重 (kg)</label><input id="pf-target" type="number" step="0.1" inputmode="decimal" value="${p.targetWeightKg||""}" placeholder="可选"></div>
+      </div>
+      <label>活动水平</label>
+      <select id="pf-activity">
+        <option value="sedentary" ${p.activityLevel==="sedentary"?"selected":""}>久坐（几乎不运动）</option>
+        <option value="light" ${p.activityLevel==="light"?"selected":""}>轻度（每周 1–3 次）</option>
+        <option value="moderate" ${p.activityLevel==="moderate"?"selected":""}>中度（每周 3–5 次）</option>
+        <option value="active" ${p.activityLevel==="active"?"selected":""}>高度（每周 6–7 次）</option>
+        <option value="very_active" ${p.activityLevel==="very_active"?"selected":""}>极高（体力工作/每天训练）</option>
+      </select>
+      <label>目标</label>
+      <select id="pf-goal">
+        <option value="lose" ${p.goal!=="gain"&&p.goal!=="maintain"?"selected":""}>减重</option>
+        <option value="maintain" ${p.goal==="maintain"?"selected":""}>保持</option>
+        <option value="gain" ${p.goal==="gain"?"selected":""}>增重</option>
+      </select>
+      <label>每周目标减重 (kg)</label>
+      <input id="pf-weekly" type="number" step="0.1" min="0.1" max="1.5" value="${p.weeklyLossKg||0.5}">
+      <div class="row mt"><button onclick="saveProfile()">💾 保存身体数据</button></div>
+    </div>
+
+    <div class="card">
+      <h2>AI 接口配置</h2>
+      <div class="muted">支持 OpenAI（含图片识别）与 DeepSeek。DeepSeek 请选择 deepseek-v4-flash-vision-exp 以获得图片识别能力。</div>
+      <label>服务商</label>
+      <select id="set-provider" onchange="onProviderChange()">
+        <option value="openai" ${settings.provider!=="deepseek"?"selected":""}>OpenAI（支持图片）</option>
+        <option value="deepseek" ${settings.provider==="deepseek"?"selected":""}>DeepSeek（可选视觉模型）</option>
+      </select>
+      <label>API Key</label>
+      <input id="set-key" type="password" placeholder="sk-..." value="${esc(settings.apiKey||"")}" autocomplete="off">
+      <label>模型名称</label>
+      <input id="set-model" list="modelList" value="${esc(settings.model||provider().model)}">
+      <datalist id="modelList"></datalist>
+      <label>API 地址</label>
+      <input id="set-endpoint" value="${esc(settings.endpoint||provider().endpoint)}" placeholder="https://api.openai.com/v1">
+      <label>助手名字</label>
+      <input id="set-persona-name" value="${esc(settings.personaName||"Piggy")}">
+      <label>助手设定</label>
+      <textarea id="set-persona-prompt" style="min-height:72px" placeholder="自然、专业、简洁的减重教练口吻">${esc(settings.personaPrompt||"")}</textarea>
+      <label class="flex" style="align-items:center">
+        <input type="checkbox" id="set-persist" style="width:auto;flex:none" ${settings.apiKeyPersist!==false?"checked":""}>
+        <span style="color:var(--ink)">API Key 保存在本机浏览器（关闭则仅本次运行有效）</span>
+      </label>
+      <div class="row mt">
+        <button onclick="saveSettings()">💾 保存设置</button>
+        <button class="ghost" onclick="clearKey()">清除 Key</button>
+      </div>
+      <div class="notice">安全提示：本地网页直接调用 API，Key 只存于你手机浏览器的本地存储中，不会上传到我的服务器。请勿在他人设备上填写个人 Key。</div>
+    </div>
+
+    <div class="card">
+      <h2>版本与更新</h2>
+      <div class="muted">当前版本 ${APP_VERSION} · 点击下载最新安装包。</div>
+      <div class="row mt"><button onclick="openUpdate()">⬇️ 检查更新并下载</button></div>
+    </div>
+
+    <div class="card">
+      <h2>数据管理</h2>
+      <div class="muted">所有记录（体重、食物、食谱、对话）都保存在本机 IndexedDB 中。</div>
+      <div class="grid2 mt">
+        <button class="ghost" onclick="exportData()">⬇️ 导出备份</button>
+        <button class="ghost" onclick="document.getElementById('importInput').click()">⬆️ 导入备份</button>
+      </div>
+      <input type="file" id="importInput" accept="application/json" hidden>
+      <div class="row mt"><button class="danger" onclick="clearAllData()">🗑 清空全部数据</button></div>
+    </div>
+    <div class="notice">⚕️ 本应用仅用于日常健康记录，AI 建议不构成医疗诊断。有疾病史、怀孕、代谢异常或体重快速异常变化时，请及时就医。</div>
+  `;
+  $("#importInput").addEventListener("change",e=>{ const f=e.target.files[0]; if(f) importData(f); e.target.value=""; });
+  onProviderChange();
+}
+
+function onProviderChange(){
+  const sel=$("#set-provider");
+  const cur=sel?sel.value:"openai";
+  const prov=PROVIDERS[cur]||PROVIDERS.openai;
+  const changed=lastProvider!==null&&lastProvider!==cur;
+  const dl=$("#modelList"); if(dl) dl.innerHTML=(prov.models||[]).map(m=>`<option value="${m}"></option>`).join("");
+  const m=$("#set-model");
+  if(m && (changed || !m.value || !(prov.models||[]).includes(m.value))) m.value=prov.model;
+  const ep=$("#set-endpoint");
+  if(ep && (changed || !ep.value)) ep.value=prov.endpoint;
+  lastProvider=cur;
+}
+
+async function saveProfile(){
+  const height=parseFloat($("#pf-height").value);
+  const birth=$("#pf-birth").value;
+  if(!height || height<80 || height>250){ showToast("请输入有效身高 (80–250 cm)"); return; }
+  if(!birth){ showToast("请填写出生日期"); return; }
+  profile={
+    id:"main", gender:$("#pf-gender").value, birthDate:birth, heightCm:height,
+    targetWeightKg:$("#pf-target").value?parseFloat($("#pf-target").value):null,
+    activityLevel:$("#pf-activity").value, goal:$("#pf-goal").value,
+    weeklyLossKg:Math.max(0.1,Math.min(1.5,+$("#pf-weekly").value||0.5))
+  };
+  await idbPut("profile",profile);
+  showToast("身体数据已保存");
+}
+
+async function saveSettings(){
+  const persist=$("#set-persist").checked;
+  const key=$("#set-key").value.trim();
+  const prov=$("#set-provider").value;
+  const provDef=PROVIDERS[prov]||PROVIDERS.openai;
+  const model=$("#set-model").value.trim()||provDef.model;
+  const endpoint=$("#set-endpoint").value.trim()||provDef.endpoint;
+  const base={id:"main",provider:prov,model,endpoint,apiKeyPersist:persist,personaName:$("#set-persona-name").value.trim()||"Piggy",personaPrompt:$("#set-persona-prompt").value.trim()};
+  if(persist){
+    memoryApiKey="";
+    settings={...base,apiKey:key};
+  }else{
+    memoryApiKey=key;
+    settings={...base,apiKey:""};
+  }
+  await idbPut("settings",settings);
+  showToast(persist&&key?"设置已保存":(key?"已保存（Key 仅本次运行有效）":"设置已保存"));
+}
+async function clearKey(){
+  memoryApiKey=""; settings.apiKey=""; await idbPut("settings",settings);
+  showToast("API Key 已清除"); renderMe();
+}
+
+async function exportData(){
+  const data={version:1, exportedAt:new Date().toISOString()};
+  for(const s of STORES){ data[s]=await idbGetAll(s); }
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download="轻盈记备份_"+todayStr()+".json"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function importData(file){
+  try{
+    const text=await readFile(file); const data=JSON.parse(text);
+    for(const s of STORES){
+      if(Array.isArray(data[s])) for(const rec of data[s]) await idbPut(s,rec);
+    }
+    showToast("导入成功，正在刷新…"); setTimeout(()=>location.reload(),800);
+  }catch(e){ showToast("导入失败："+e.message); }
+}
+async function clearAllData(){
+  if(!confirm("确定清空全部本地数据？此操作不可恢复（建议先导出备份）。")) return;
+  for(const s of STORES) await idbClear(s);
+  chat=[]; pendingPhoto=null; memoryApiKey="";
+  showToast("已清空全部数据"); setTimeout(()=>location.reload(),600);
+}
+
+/* ============ 图片处理 ============ */
+function readFile(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result); r.onerror=()=>reject(r.error); r.readAsDataURL(file);
+  });
+}
+function compressImage(dataUrl,maxDim,quality){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      const scale=Math.min(1,maxDim/Math.max(w,h));
+      w=Math.round(w*scale); h=Math.round(h*scale);
+      const c=document.createElement("canvas"); c.width=w; c.height=h;
+      const ctx=c.getContext("2d"); ctx.drawImage(img,0,0,w,h);
+      resolve(c.toDataURL("image/jpeg",quality));
+    };
+    img.onerror=()=>reject(new Error("图片解码失败"));
+    img.src=dataUrl;
+  });
+}
+
+/* ============ 拍照分析入口（由聊天触发） ============ */
+// 照片已通过 fileInput -> pendingPhoto 流程附加；发送时若带图，服务端调用分析逻辑。
+// 为直接完成“拍照分析”，在 sendChat 中检测带图消息并替换为分析动作：
+sendChat = async function(){
+  const input=$("#chatInput");
+  const text=input.value.trim();
+  const hasPhoto=!!pendingPhoto;
+  if(!text && !hasPhoto){ showToast("请输入内容或先拍照"); return; }
+  if(!getApiKey()){ showToast("请先在「我的」配置 API Key"); return; }
+  input.value="";
+
+  if(hasPhoto){
+    const photo=pendingPhoto; pendingPhoto=null;
+    chat.push({role:"user",text:text||"请分析这张食物的营养成分。",image:photo,ts:Date.now()});
+    await saveChat(); renderChat();
+    if(!providerVision()){
+      textFoodMode=true;
+      chat.push({role:"assistant",text:"当前模型（"+providerLabel()+"）不支持图片识别。请直接输入食物名称和大致份量（例如：米饭一碗、鸡胸肉150克），我会帮你估算营养。",ts:Date.now()});
+      await saveChat(); renderChat();
+      return;
+    }
+    setTyping(true);
+    try{
+      const j=await analyzeFoodPhoto(photo);
+      await saveFoodRecord(j,photo);
+      chat.push({role:"assistant",text:nutritionText(j),ts:Date.now()});
+      await saveChat();
+    }catch(e){
+      chat.push({role:"assistant",text:"分析失败："+e.message,ts:Date.now()}); await saveChat();
+    }
+    setTyping(false); renderChat();
+    return;
+  }
+
+  if(textFoodMode){
+    textFoodMode=false;
+    chat.push({role:"user",text:text,ts:Date.now()});
+    await saveChat(); renderChat(); setTyping(true);
+    try{
+      const j=await analyzeFoodText(text);
+      await saveFoodRecord(j,null);
+      chat.push({role:"assistant",text:nutritionText(j),ts:Date.now()});
+      await saveChat();
+    }catch(e){
+      chat.push({role:"assistant",text:"分析失败："+e.message,ts:Date.now()}); await saveChat();
+    }
+    setTyping(false); renderChat();
+    return;
+  }
+
+  // 纯文本对话（流式输出，提升响应体感）
+  const userMsg={id:++msgSeq,role:"user",text:text,ts:Date.now()};
+  const aiMsg={id:++msgSeq,role:"assistant",text:"",ts:Date.now()};
+  chat.push(userMsg); chat.push(aiMsg);
+  await saveChat(); renderChat();
+  const bubble=document.querySelector(`[data-msg-id="${aiMsg.id}"] .bubble`);
+  let full="";
+  try{
+    full=await callAIStream(buildChatInput(chat.slice(0,-1)), healthInstructions(), d=>{
+      full+=d; aiMsg.text=full;
+      if(bubble) bubble.textContent=full;
+      scrollChat();
+    });
+    aiMsg.text=full;
+    if(bubble) bubble.textContent=full;
+    await saveChat();
+  }catch(e){
+    aiMsg.text="出错了："+e.message;
+    if(bubble) bubble.textContent=aiMsg.text;
+    await saveChat();
+  }
+  scrollChat();
+};
+
+async function saveFoodRecord(j,image){
+  await idbPut("foods",{id:uid(),date:todayStr(),createdAt:Date.now(),image:image||null,
+    name:j.name||"食物", estimatedWeight:j.estimated_weight_g!=null?+j.estimated_weight_g:null,
+    calories:j.calories!=null?+j.calories:null, protein:j.protein_g!=null?+j.protein_g:null,
+    carbs:j.carbs_g!=null?+j.carbs_g:null, fat:j.fat_g!=null?+j.fat_g:null,
+    fiber:j.fiber_g!=null?+j.fiber_g:null, sugar:j.sugar_g!=null?+j.sugar_g:null,
+    sodium:j.sodium_mg!=null?+j.sodium_mg:null, items:j.items||[], notes:j.notes||""});
+}
+
+document.addEventListener("DOMContentLoaded",init);
+</script>
+</body>
+</html>
