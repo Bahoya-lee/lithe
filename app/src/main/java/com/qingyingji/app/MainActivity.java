@@ -1,6 +1,11 @@
 package com.qingyingji.app;
 
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,8 +20,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
+import androidx.core.content.ContextCompat;
 import androidx.health.connect.client.HealthConnectClient;
 import androidx.health.connect.client.PermissionController;
 import androidx.health.connect.client.aggregate.AggregateMetric;
@@ -35,8 +42,11 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,6 +63,8 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> filePathCallback;
     private Uri currentPhotoUri;
     private ActivityResultLauncher<Set<String>> healthPermissionLauncher;
+    private ActivityResultLauncher<String> activityPermissionLauncher;
+    private boolean localHealthRequested = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,8 +116,23 @@ public class MainActivity extends AppCompatActivity {
 
         webView.addJavascriptInterface(this, "HealthBridge");
         registerHealthPermissionLauncher();
+        registerActivityPermissionLauncher();
 
         webView.loadUrl("file:///android_asset/www/index.html");
+    }
+
+    private void registerActivityPermissionLauncher() {
+        activityPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                granted -> {
+                    if (granted && localHealthRequested) {
+                        localHealthRequested = false;
+                        readLocalHealth();
+                    } else if (localHealthRequested) {
+                        localHealthRequested = false;
+                        dispatchHealthResult("{\"error\":\"没有身体活动权限，无法读取本机步数\"}");
+                    }
+                });
     }
 
     private void registerHealthPermissionLauncher() {
@@ -186,15 +213,29 @@ public class MainActivity extends AppCompatActivity {
 
     @JavascriptInterface
     public String healthStatus() {
+        boolean isVivo = isVivoDevice();
+        String[] vivoPackages = vivoHealthPackages();
+        boolean localAvailable = hasStepCounter();
+        StringBuilder base = new StringBuilder();
+        base.append("{\"available\":").append(false)
+                .append(",\"granted\":").append(false)
+                .append(",\"isVivo\":").append(isVivo)
+                .append(",\"localAvailable\":").append(localAvailable)
+                .append(",\"vivoPackages\":[");
+        for (int i = 0; i < vivoPackages.length; i++) {
+            if (i > 0) base.append(",");
+            base.append("\"").append(vivoPackages[i]).append("\"");
+        }
+        base.append("]}");
         HealthConnectClient client = getHealthConnectClient();
         if (client == null) {
-            return "{\"available\":false,\"error\":\"当前设备不支持 Health Connect，或未安装 Google Health Connect\"}";
+            return injectJson(base.toString(), "\"error\":\"当前设备不支持 Health Connect，或未安装 Google Health Connect\"");
         }
         try {
             Set<String> granted = awaitSet(client.getPermissionController().getGrantedPermissions(blockingContinuation()));
             Set<String> required = requiredPermissions();
             if (granted.containsAll(required)) {
-                return "{\"available\":true,\"granted\":true}";
+                return injectJson(base.toString(), "\"available\":true,\"granted\":true");
             }
             Set<String> missing = new HashSet<>(required);
             missing.removeAll(granted);
@@ -206,9 +247,62 @@ public class MainActivity extends AppCompatActivity {
                 first = false;
             }
             arr.append("]");
-            return "{\"available\":true,\"granted\":false,\"missing\":" + arr + "}";
+            return injectJson(base.toString(), "\"available\":true,\"granted\":false,\"missing\":" + arr);
         } catch (Throwable t) {
-            return "{\"available\":true,\"granted\":false,\"error\":\"健康数据权限读取失败\"}";
+            return injectJson(base.toString(), "\"available\":true,\"granted\":false,\"error\":\"健康数据权限读取失败\"");
+        }
+    }
+
+    private String injectJson(String object, String fields) {
+        if (object == null || !object.endsWith("}")) {
+            return object;
+        }
+        return object.substring(0, object.length() - 1) + "," + fields + "}";
+    }
+
+    private boolean isVivoDevice() {
+        String brand = Build.BRAND;
+        String manufacturer = Build.MANUFACTURER;
+        if (brand != null) {
+            String b = brand.toLowerCase(Locale.ROOT);
+            if (b.contains("vivo") || b.contains("iqoo")) return true;
+        }
+        if (manufacturer != null) {
+            String m = manufacturer.toLowerCase(Locale.ROOT);
+            if (m.contains("vivo") || m.contains("bbk")) return true;
+        }
+        return false;
+    }
+
+    private String[] vivoHealthPackages() {
+        List<String> known = Arrays.asList(
+                "com.vivo.health",
+                "com.vivo.exhealth",
+                "com.vivo.healthwidget",
+                "com.vivo.stepcount",
+                "com.vivo.assistant");
+        PackageManager pm = getPackageManager();
+        StringBuilder arr = new StringBuilder();
+        boolean first = true;
+        for (String pkg : known) {
+            try {
+                pm.getPackageInfo(pkg, 0);
+                if (!first) arr.append("|");
+                arr.append(pkg);
+                first = false;
+            } catch (Throwable ignored) {
+            }
+        }
+        if (arr.length() == 0) return new String[0];
+        return arr.toString().split("\\|");
+    }
+
+    private boolean hasStepCounter() {
+        try {
+            SensorManager sm = (SensorManager) getSystemService(SENSOR_SERVICE);
+            return sm != null && sm.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null;
+        } catch (Throwable t) {
+            return false;
         }
     }
 
@@ -230,6 +324,90 @@ public class MainActivity extends AppCompatActivity {
     @JavascriptInterface
     public void readHealth() {
         readHealthData();
+    }
+
+    @JavascriptInterface
+    public void requestActivityPermission() {
+        runOnUiThread(() -> {
+            try {
+                if (hasActivityPermission()) {
+                    readLocalHealth();
+                    return;
+                }
+                localHealthRequested = true;
+                activityPermissionLauncher.launch("android.permission.ACTIVITY_RECOGNITION");
+            } catch (Throwable t) {
+                dispatchHealthResult("{\"error\":\"无法打开身体活动权限\"}");
+            }
+        });
+    }
+
+    @JavascriptInterface
+    public void readLocalHealth() {
+        runOnUiThread(() -> {
+            if (!hasActivityPermission()) {
+                localHealthRequested = true;
+                try {
+                    activityPermissionLauncher.launch("android.permission.ACTIVITY_RECOGNITION");
+                } catch (Throwable t) {
+                    localHealthRequested = false;
+                    dispatchHealthResult("{\"error\":\"无法打开身体活动权限\"}");
+                }
+                return;
+            }
+            readStepCounter();
+        });
+    }
+
+    private boolean hasActivityPermission() {
+        return ContextCompat.checkSelfPermission(this, "android.permission.ACTIVITY_RECOGNITION")
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void readStepCounter() {
+        SensorManager sm = (SensorManager) getSystemService(SENSOR_SERVICE);
+        Sensor sensor = sm == null ? null : sm.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+        if (sensor == null) {
+            dispatchHealthResult("{\"error\":\"此手机没有可用的步数传感器\"}");
+            return;
+        }
+        new Thread(() -> {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Float> steps = new AtomicReference<>();
+            SensorEventListener listener = new SensorEventListener() {
+                @Override
+                public void onSensorChanged(SensorEvent event) {
+                    if (event.values != null && event.values.length > 0) {
+                        steps.set(event.values[0]);
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void onAccuracyChanged(Sensor sensor, int accuracy) {
+                }
+            };
+            try {
+                sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+                long deadline = System.currentTimeMillis() + 2500L;
+                while (latch.getCount() > 0 && System.currentTimeMillis() < deadline) {
+                    latch.await(200, java.util.concurrent.TimeUnit.MILLISECONDS);
+                }
+            } catch (Throwable ignored) {
+            } finally {
+                try {
+                    sm.unregisterListener(listener);
+                } catch (Throwable ignored) {
+                }
+            }
+            Float value = steps.get();
+            if (value == null) {
+                dispatchHealthResult("{\"error\":\"未获取到本机步数，请尝试授权 Health Connect 或手动记录\"}");
+                return;
+            }
+            long rounded = Math.max(0L, Math.round(value));
+            dispatchHealthResult("{\"steps\":" + rounded + ",\"activeCalories\":null,\"totalCalories\":null,\"source\":\"device_sensor\"}");
+        }).start();
     }
 
     private HealthConnectClient getHealthConnectClient() {

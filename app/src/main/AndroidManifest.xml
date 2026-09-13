@@ -8,6 +8,11 @@
 
     <queries>
         <package android:name="com.google.android.apps.healthdata"/>
+        <package android:name="com.vivo.health"/>
+        <package android:name="com.vivo.exhealth"/>
+        <package android:name="com.vivo.healthwidget"/>
+        <package android:name="com.vivo.stepcount"/>
+        <package android:name="com.vivo.assistant"/>
     </queries>
 
     <application
