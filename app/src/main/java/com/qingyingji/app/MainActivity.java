@@ -2,6 +2,9 @@ package com.qingyingji.app;
 
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.Manifest;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -11,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.JavascriptInterface;
@@ -38,7 +42,9 @@ import androidx.health.connect.client.time.TimeRangeFilter;
 import androidx.health.connect.client.units.Energy;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -51,6 +57,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.json.JSONObject;
+
 import kotlin.coroutines.Continuation;
 import kotlin.coroutines.CoroutineContext;
 import kotlin.coroutines.EmptyCoroutineContext;
@@ -62,8 +70,12 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private Uri currentPhotoUri;
+    private Uri bridgePhotoUri;
     private ActivityResultLauncher<Set<String>> healthPermissionLauncher;
     private ActivityResultLauncher<String> activityPermissionLauncher;
+    private ActivityResultLauncher<String> cameraPermissionLauncher;
+    private ActivityResultLauncher<Uri> photoLauncher;
+    private ActivityResultLauncher<String> galleryLauncher;
     private boolean localHealthRequested = false;
 
     @Override
@@ -115,8 +127,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.addJavascriptInterface(this, "HealthBridge");
+        webView.addJavascriptInterface(this, "PhotoBridge");
         registerHealthPermissionLauncher();
         registerActivityPermissionLauncher();
+        registerPhotoLaunchers();
 
         webView.loadUrl("file:///android_asset/www/index.html");
     }
@@ -133,6 +147,94 @@ public class MainActivity extends AppCompatActivity {
                         dispatchHealthResult("{\"error\":\"没有身体活动权限，无法读取本机步数\"}");
                     }
                 });
+    }
+
+    private void registerPhotoLaunchers() {
+        cameraPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                granted -> {
+                    if (granted) {
+                        launchCamera();
+                    } else {
+                        dispatchPhotoResult(null, "camera_permission_denied");
+                    }
+                });
+
+        photoLauncher = registerForActivityResult(
+                new ActivityResultContracts.TakePicture(),
+                success -> {
+                    Uri uri = bridgePhotoUri;
+                    bridgePhotoUri = null;
+                    if (Boolean.TRUE.equals(success) && uri != null) {
+                        dispatchPhotoResult(uri, null);
+                    } else {
+                        dispatchPhotoResult(null, "camera_cancelled");
+                    }
+                });
+
+        galleryLauncher = registerForActivityResult(
+                new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        dispatchPhotoResult(uri, null);
+                    } else {
+                        dispatchPhotoResult(null, "image_cancelled");
+                    }
+                });
+    }
+
+    @JavascriptInterface
+    public void takePhoto() {
+        runOnUiThread(() -> {
+            if (!hasCamera()) {
+                dispatchPhotoResult(null, "no_camera");
+                return;
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                    == PackageManager.PERMISSION_GRANTED) {
+                launchCamera();
+            } else {
+                try {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+                } catch (Throwable t) {
+                    dispatchPhotoResult(null, "camera_permission_error");
+                }
+            }
+        });
+    }
+
+    @JavascriptInterface
+    public void pickImage() {
+        runOnUiThread(() -> {
+            try {
+                galleryLauncher.launch("image/*");
+            } catch (Throwable t) {
+                dispatchPhotoResult(null, "image_picker_error");
+            }
+        });
+    }
+
+    private boolean hasCamera() {
+        return getPackageManager() != null
+                && getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
+    }
+
+    private void launchCamera() {
+        try {
+            File dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+            if (dir == null) {
+                dispatchPhotoResult(null, "no_picture_dir");
+                return;
+            }
+            File image = File.createTempFile("food_", ".jpg", dir);
+            bridgePhotoUri = FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", image);
+            photoLauncher.launch(bridgePhotoUri);
+        } catch (IOException e) {
+            dispatchPhotoResult(null, "create_photo_failed");
+        } catch (Throwable t) {
+            dispatchPhotoResult(null, "camera_launch_failed");
+        }
     }
 
     private void registerHealthPermissionLauncher() {
@@ -199,6 +301,85 @@ public class MainActivity extends AppCompatActivity {
             filePathCallback.onReceiveValue(results);
             filePathCallback = null;
             currentPhotoUri = null;
+        }
+    }
+
+    private void dispatchPhotoResult(Uri uri, String error) {
+        if (uri == null) {
+            sendPhotoResult(null, error);
+            return;
+        }
+        new Thread(() -> {
+            String dataUrl = uriToDataUrl(uri);
+            String finalError = dataUrl == null ? "decode_photo_failed" : error;
+            sendPhotoResult(dataUrl, finalError);
+        }).start();
+    }
+
+    private void sendPhotoResult(String dataUrl, String error) {
+        runOnUiThread(() -> {
+            if (webView == null) {
+                return;
+            }
+            try {
+                JSONObject obj = new JSONObject();
+                obj.put("dataUrl", dataUrl == null ? JSONObject.NULL : dataUrl);
+                obj.put("error", error == null ? JSONObject.NULL : error);
+                String json = obj.toString().replace("\\", "\\\\").replace("'", "\\'");
+                webView.evaluateJavascript(
+                        "window.onPhotoBridgeResult && window.onPhotoBridgeResult('" + json + "');",
+                        null);
+            } catch (Throwable ignored) {
+            }
+        });
+    }
+
+    private String uriToDataUrl(Uri uri) {
+        Bitmap bitmap = decodeSampledBitmap(uri, 1600, 1600);
+        if (bitmap == null) {
+            return null;
+        }
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 82, baos);
+            return "data:image/jpeg;base64," + Base64.encodeToString(
+                    baos.toByteArray(), Base64.NO_WRAP);
+        } catch (Throwable ignored) {
+            return null;
+        } finally {
+            if (!bitmap.isRecycled()) {
+                bitmap.recycle();
+            }
+        }
+    }
+
+    private Bitmap decodeSampledBitmap(Uri uri, int reqWidth, int reqHeight) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            try (InputStream in = getContentResolver().openInputStream(uri)) {
+                if (in == null) {
+                    return null;
+                }
+                BitmapFactory.decodeStream(in, null, bounds);
+            }
+
+            int sample = 1;
+            while (bounds.outWidth / (sample * 2) >= reqWidth
+                    && bounds.outHeight / (sample * 2) >= reqHeight) {
+                sample *= 2;
+            }
+
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sample;
+            try (InputStream in = getContentResolver().openInputStream(uri)) {
+                if (in == null) {
+                    return null;
+                }
+                return BitmapFactory.decodeStream(in, null, opts);
+            }
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 
